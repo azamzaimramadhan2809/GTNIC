@@ -13,20 +13,20 @@ return new class extends Migration
     {
         Schema::create('ingredients', function (Blueprint $table) {
             $table->id();
-        
+
             $table->foreignId('warung_id')
                 ->constrained()
                 ->cascadeOnDelete();
-        
+
             $table->foreignId('ingredient_category_id')
                 ->constrained()
                 ->cascadeOnDelete();
-        
+
             $table->string('name');
             $table->decimal('stock', 10, 2)->default(0);
             $table->decimal('minimum_stock', 10, 2)->default(0);
             $table->string('unit', 30);
-        
+
             $table->timestamps();
         });
     }

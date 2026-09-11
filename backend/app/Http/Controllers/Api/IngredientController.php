@@ -19,6 +19,14 @@ class IngredientController extends Controller
         $ingredients = $warung->ingredients()
             ->with('category:id,name')
             ->when(
+                $request->filled('search'),
+                fn ($query) => $query->where(
+                    'name',
+                    'like',
+                    '%'.$request->string('search')->toString().'%'
+                )
+            )
+            ->when(
                 $request->filled('category_id'),
                 fn ($query) => $query->where(
                     'ingredient_category_id',
@@ -124,6 +132,7 @@ class IngredientController extends Controller
             'stock' => ['sometimes', 'numeric', 'min:0'],
             'minimum_stock' => ['sometimes', 'numeric', 'min:0'],
             'unit' => [$required, 'string', 'max:30'],
+            'purchase_price' => ['sometimes', 'numeric', 'min:0'],
         ]);
     }
 }

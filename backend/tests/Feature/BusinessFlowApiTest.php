@@ -24,16 +24,28 @@ class BusinessFlowApiTest extends TestCase
             'stock' => 1000,
             'minimum_stock' => 200,
             'unit' => 'gram',
+            'purchase_price' => 5,
         ]);
 
         Sanctum::actingAs($user);
 
+        $menuCategoryResponse = $this->postJson(
+            "/api/warungs/{$warung->id}/menu-categories",
+            ['name' => 'Makanan']
+        )->assertCreated();
+        $menuCategoryId = $menuCategoryResponse->json('category.id');
+
         $menuResponse = $this->postJson("/api/warungs/{$warung->id}/menus", [
+            'menu_category_id' => $menuCategoryId,
             'name' => 'Nasi Goreng',
             'price' => 15000,
             'is_available' => true,
         ])->assertCreated();
         $menuId = $menuResponse->json('menu.id');
+
+        $this->getJson(
+            "/api/warungs/{$warung->id}/menus?search=nasi&category_id={$menuCategoryId}"
+        )->assertOk()->assertJsonPath('menus.data.0.id', $menuId);
 
         $this->putJson("/api/warungs/{$warung->id}/menus/{$menuId}/recipe", [
             'ingredients' => [
@@ -97,6 +109,8 @@ class BusinessFlowApiTest extends TestCase
             ->assertJsonPath('summary.revenue', 35000)
             ->assertJsonPath('summary.expenses', 20000)
             ->assertJsonPath('summary.net_income', 15000)
+            ->assertJsonPath('summary.estimated_cogs', 1000)
+            ->assertJsonPath('summary.estimated_profit', 14000)
             ->assertJsonPath('summary.sales_count', 1)
             ->assertJsonPath('top_menus.0.name', 'Nasi Goreng');
 

@@ -16,6 +16,8 @@ Authorization: Bearer <token>
 |---|---|---|
 | POST | `/register` | Daftar dan menerima token |
 | POST | `/login` | Login dan menerima token |
+| POST | `/forgot-password` | Kirim tautan reset password |
+| POST | `/reset-password` | Simpan password baru |
 | GET | `/user` | Profil pengguna aktif |
 | POST | `/logout` | Cabut token aktif |
 
@@ -32,7 +34,14 @@ Authorization: Bearer <token>
 | GET/POST | `/warungs/{warung}/stock-movements` | Riwayat/penyesuaian stok |
 | GET | `/warungs/{warung}/stock-movements/{stockMovement}` | Detail perubahan stok |
 
-Filter bahan: `?category_id=1` dan `?low_stock=true`.
+Filter bahan: `?search=beras`, `?category_id=1`, dan `?low_stock=true`.
+
+Registrasi menerima nomor HP opsional melalui field `phone`. Login dapat tetap
+memakai field `email` untuk kompatibilitas, atau field `login` yang berisi email
+atau nomor HP.
+
+Harga beli bahan disimpan pada field `purchase_price` dan dinyatakan per unit
+bahan yang dipilih.
 
 Contoh penyesuaian stok:
 
@@ -52,6 +61,11 @@ Contoh penyesuaian stok:
 | GET/POST | `/warungs/{warung}/menus` | Daftar/buat menu |
 | GET/PATCH/DELETE | `/warungs/{warung}/menus/{menu}` | Detail/ubah/hapus menu |
 | PUT | `/warungs/{warung}/menus/{menu}/recipe` | Ganti resep menu |
+| GET/POST | `/warungs/{warung}/menu-categories` | Daftar/buat kategori menu |
+| GET/PATCH/DELETE | `/warungs/{warung}/menu-categories/{menuCategory}` | Kelola kategori menu |
+
+Daftar menu mendukung `?search=nasi`, `?category_id=1`, dan
+`?available=true`. Menu menerima `menu_category_id` opsional.
 
 Contoh resep:
 
@@ -101,8 +115,10 @@ jika menu tidak tersedia, belum memiliki resep, atau stok tidak mencukupi.
 | GET | `/warungs/{warung}/dashboard` | Ringkasan usaha |
 
 Endpoint penjualan dan pengeluaran menerima filter `date_from` dan `date_to`
-dengan format `YYYY-MM-DD`. Dashboard memakai periode bulan berjalan secara
-default dan dapat diberi filter tanggal yang sama.
+dengan format `YYYY-MM-DD`. Dashboard memakai periode hari ini secara default
+dan dapat diberi filter tanggal yang sama. Field `estimated_cogs` menghitung
+estimasi modal bahan, sedangkan `estimated_profit` menghitung omzet dikurangi
+modal bahan dan pengeluaran.
 
 ## Kode respons utama
 

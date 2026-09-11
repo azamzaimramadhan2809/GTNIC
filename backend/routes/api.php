@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\IngredientCategoryController;
 use App\Http\Controllers\Api\IngredientController;
 use App\Http\Controllers\Api\MenuController;
+use App\Http\Controllers\Api\MenuCategoryController;
 use App\Http\Controllers\Api\MenuRecipeController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockMovementController;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('throttle:60,1')->group(function (): void {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/user', [AuthController::class, 'profile']);
@@ -29,6 +32,8 @@ Route::middleware('throttle:60,1')->group(function (): void {
 
             Route::apiResource('ingredients', IngredientController::class);
             Route::apiResource('menus', MenuController::class);
+            Route::apiResource('menu-categories', MenuCategoryController::class)
+                ->parameters(['menu-categories' => 'menuCategory']);
             Route::put('menus/{menu}/recipe', [MenuRecipeController::class, 'update'])
                 ->name('menus.recipe.update');
 

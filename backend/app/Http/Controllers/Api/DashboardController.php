@@ -20,7 +20,7 @@ class DashboardController extends Controller
 
         $dateFrom = isset($validated['date_from'])
             ? Carbon::parse($validated['date_from'])->startOfDay()
-            : now()->startOfMonth();
+            : now()->startOfDay();
         $dateTo = isset($validated['date_to'])
             ? Carbon::parse($validated['date_to'])->endOfDay()
             : now()->endOfDay();
@@ -34,6 +34,17 @@ class DashboardController extends Controller
 
         $revenue = round((float) (clone $completedSales)->sum('total'), 2);
         $expenseTotal = round((float) (clone $expenses)->sum('amount'), 2);
+        $estimatedCogs = round((float) SaleItem::query()
+            ->join('sales', 'sales.id', '=', 'sale_items.sale_id')
+            ->join('menu_ingredients', 'menu_ingredients.menu_id', '=', 'sale_items.menu_id')
+            ->join('ingredients', 'ingredients.id', '=', 'menu_ingredients.ingredient_id')
+            ->where('sales.warung_id', $warung->id)
+            ->where('sales.status', 'completed')
+            ->whereBetween('sales.created_at', [$dateFrom, $dateTo])
+            ->selectRaw(
+                'COALESCE(SUM(sale_items.quantity * menu_ingredients.quantity * ingredients.purchase_price), 0) as total'
+            )
+            ->value('total'), 2);
 
         $topMenus = SaleItem::query()
             ->select(['menus.id', 'menus.name'])
@@ -57,6 +68,11 @@ class DashboardController extends Controller
                 'revenue' => $revenue,
                 'expenses' => $expenseTotal,
                 'net_income' => round($revenue - $expenseTotal, 2),
+                'estimated_cogs' => $estimatedCogs,
+                'estimated_profit' => round(
+                    $revenue - $expenseTotal - $estimatedCogs,
+                    2
+                ),
                 'sales_count' => (clone $completedSales)->count(),
                 'menus_count' => $warung->menus()->count(),
                 'ingredients_count' => $warung->ingredients()->count(),

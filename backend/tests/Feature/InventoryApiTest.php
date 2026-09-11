@@ -43,10 +43,15 @@ class InventoryApiTest extends TestCase
                 'stock' => 1000,
                 'minimum_stock' => 2000,
                 'unit' => 'gram',
+                'purchase_price' => 15000,
             ]
         )->assertCreated();
 
         $ingredientId = $ingredientResponse->json('ingredient.id');
+
+        $this->getJson("/api/warungs/{$warungId}/ingredients?search=beras")
+            ->assertOk()
+            ->assertJsonPath('ingredients.data.0.id', $ingredientId);
 
         $this->getJson("/api/warungs/{$warungId}/ingredients?low_stock=true")
             ->assertOk()

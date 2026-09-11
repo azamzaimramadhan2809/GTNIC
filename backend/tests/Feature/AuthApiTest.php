@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
+use Illuminate\Auth\Notifications\ResetPassword as ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class AuthApiTest extends TestCase
@@ -15,6 +19,7 @@ class AuthApiTest extends TestCase
         $register = $this->postJson('/api/register', [
             'name' => 'Zaim',
             'email' => 'zaim@example.com',
+            'phone' => '08123456789',
             'password' => 'password123',
             'password_confirmation' => 'password123',
         ]);
@@ -43,7 +48,7 @@ class AuthApiTest extends TestCase
             ->assertUnauthorized();
 
         $this->postJson('/api/login', [
-            'email' => 'zaim@example.com',
+            'login' => '08123456789',
             'password' => 'password123',
         ])->assertOk()->assertJsonStructure(['user', 'token', 'token_type']);
 
@@ -52,7 +57,7 @@ class AuthApiTest extends TestCase
             'password' => 'password-salah',
         ])->assertUnprocessable()->assertJsonPath(
             'message',
-            'Email atau password tidak sesuai.'
+            'Email, nomor HP, atau password tidak sesuai.'
         );
     }
 
@@ -61,5 +66,37 @@ class AuthApiTest extends TestCase
         $this->getJson('/api/warungs')
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Unauthenticated.');
+    }
+
+    public function test_user_can_request_and_complete_password_reset(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create([
+            'email' => 'reset@example.com',
+        ]);
+        $token = null;
+
+        $this->postJson('/api/forgot-password', [
+            'email' => $user->email,
+        ])->assertOk();
+
+        Notification::assertSentTo(
+            $user,
+            ResetPasswordNotification::class,
+            function (ResetPasswordNotification $notification) use (&$token): bool {
+                $token = $notification->token;
+
+                return true;
+            }
+        );
+
+        $this->postJson('/api/reset-password', [
+            'token' => $token,
+            'email' => $user->email,
+            'password' => 'password-baru',
+            'password_confirmation' => 'password-baru',
+        ])->assertOk();
+
+        $this->assertTrue(Hash::check('password-baru', $user->fresh()->password));
     }
 }

@@ -10,6 +10,7 @@ class Menu extends Model
 {
     protected $fillable = [
         'warung_id',
+        'menu_category_id',
         'name',
         'description',
         'image',
@@ -28,6 +29,11 @@ class Menu extends Model
     public function warung(): BelongsTo
     {
         return $this->belongsTo(Warung::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(MenuCategory::class, 'menu_category_id');
     }
 
     /**

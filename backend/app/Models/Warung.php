@@ -50,6 +50,11 @@ class Warung extends Model
         return $this->hasMany(Menu::class);
     }
 
+    public function menuCategories(): HasMany
+    {
+        return $this->hasMany(MenuCategory::class);
+    }
+
     /**
      * Warung memiliki banyak transaksi penjualan.
      */

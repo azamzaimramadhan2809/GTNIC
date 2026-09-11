@@ -13,17 +13,17 @@ return new class extends Migration
     {
         Schema::create('menus', function (Blueprint $table) {
             $table->id();
-        
+
             $table->foreignId('warung_id')
                 ->constrained()
                 ->cascadeOnDelete();
-        
+
             $table->string('name');
             $table->text('description')->nullable();
             $table->string('image')->nullable();
             $table->decimal('price', 12, 2);
             $table->boolean('is_available')->default(true);
-        
+
             $table->timestamps();
         });
     }
