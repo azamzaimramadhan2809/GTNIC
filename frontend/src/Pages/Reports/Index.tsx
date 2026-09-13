@@ -255,8 +255,12 @@ const TrendBarChart: React.FC<{
   const BAR_GAP = data.length > 6 ? 8 : 14;
   const barWidth = (W - PAD_LEFT - PAD_RIGHT - BAR_GAP * (data.length - 1)) / data.length;
 
-  const barColor      = activeMetric === 'revenue' ? '#057A55' : activeMetric === 'profit' ? '#0891b2' : '#d97706';
-  const barColorLight = activeMetric === 'revenue' ? '#bbf7d0' : activeMetric === 'profit' ? '#bae6fd' : '#fde68a';
+  // Active bar colors (emerald-600 for revenue, vibrant cyan for profit, amber for transactions)
+  const barColor      = activeMetric === 'revenue' ? '#059669' : activeMetric === 'profit' ? '#0891b2' : '#d97706';
+  const barHoverColor = activeMetric === 'revenue' ? '#047857' : activeMetric === 'profit' ? '#0e7490' : '#b45309';
+
+  // Background track container: subtler and lighter shade (slate-100 / emerald-50) for crisp contrast
+  const trackColor = '#f1f5f9';
 
   const formatTooltip = (val: number) =>
     activeMetric === 'transactions' ? `${val} Struk` : formatRp(val, true);
@@ -295,17 +299,31 @@ const TrendBarChart: React.FC<{
               onMouseLeave={() => setHoveredIdx(null)}
               style={{ cursor: 'pointer' }}
             >
-              {/* Bar background track */}
-              <rect x={x} y={8} width={barWidth} height={H - 8}
-                rx={6} fill={barColorLight} opacity={0.35} />
-
-              {/* Active bar with smooth height transition via CSS */}
+              {/* Bar background track container (subtle, light slate-100 shade) */}
               <rect
-                x={x} y={y} width={barWidth} height={barH}
+                x={x}
+                y={8}
+                width={barWidth}
+                height={H - 8}
                 rx={6}
-                fill={barColor}
-                opacity={hov ? 1 : 0.82}
-                style={{ transition: 'height 0.4s ease, y 0.4s ease, opacity 0.2s ease' }}
+                fill={trackColor}
+                opacity={0.85}
+              />
+
+              {/* Active high-contrast bar with smooth 300ms transition */}
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={barH}
+                rx={6}
+                fill={hov ? barHoverColor : barColor}
+                opacity={1}
+                className="transition-all duration-300"
+                style={{
+                  transition: 'height 300ms cubic-bezier(0.4, 0, 0.2, 1), y 300ms cubic-bezier(0.4, 0, 0.2, 1), fill 200ms ease',
+                  filter: hov ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.12))' : undefined,
+                }}
               />
 
               {/* Hover tooltip */}
@@ -362,7 +380,7 @@ const ReceiptModal: React.FC<{ trx: Transaction | null; onClose: () => void }> =
 
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative w-full md:max-w-sm bg-white rounded-t-3xl md:rounded-2xl shadow-2xl z-10 animate-in slide-in-from-bottom-4 md:zoom-in-95 duration-200 overflow-hidden">
         {/* Header */}
         <div className="bg-[#057A55] text-white px-5 pt-6 pb-8 text-center relative">
@@ -419,7 +437,7 @@ const ExportModal: React.FC<{ open: boolean; onClose: () => void; onExport: (typ
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={onClose} />
       <div className="relative w-full md:max-w-sm bg-white rounded-t-3xl md:rounded-2xl shadow-2xl z-10 p-5 animate-in slide-in-from-bottom-4 md:zoom-in-95 duration-200">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-bold text-slate-900">Unduh Laporan</h2>
@@ -760,77 +778,95 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {visibleTrx.map(trx => (
-                    <tr key={trx.id} className={`hover:bg-slate-50/60 transition-colors ${trx.status === 'refund' ? 'opacity-60' : ''}`}>
-                      <td className="px-5 py-3">
-                        <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">{trx.id.slice(-9)}</span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="text-xs font-semibold text-slate-800 flex items-center gap-1">
-                          <Clock size={11} className="text-slate-400" /> {trx.time} WIB
-                        </div>
-                        <div className="text-[10px] text-slate-400">{trx.date}</div>
-                      </td>
-                      <td className="px-5 py-3 max-w-[180px]">
-                        <div className="text-xs text-slate-700 truncate">{trx.items}</div>
-                        <div className="text-[10px] text-slate-400">{trx.itemCount} jenis produk</div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${paymentColor(trx.payment)}`}>
-                          {paymentIcon(trx.payment)}{trx.payment}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="text-sm font-extrabold text-slate-900">{formatRp(trx.total)}</div>
-                        {trx.status === 'refund' && (
-                          <span className="text-[10px] font-bold text-rose-600">REFUND</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3">
-                        <button
-                          onClick={() => setReceiptTrx(trx)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-[#057A55] text-slate-600 text-xs font-semibold transition-colors cursor-pointer"
-                        >
-                          <Eye size={12} /> Lihat Struk
-                        </button>
+                  {visibleTrx.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        <Receipt size={36} className="mx-auto mb-2 text-slate-300" />
+                        <p className="text-sm font-bold text-slate-700">Belum Ada Transaksi</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Transaksi untuk periode ini belum tersedia.</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    visibleTrx.map(trx => (
+                      <tr key={trx.id} className={`hover:bg-slate-50/60 transition-colors ${trx.status === 'refund' ? 'opacity-60' : ''}`}>
+                        <td className="px-5 py-3">
+                          <span className="font-mono text-xs font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">{trx.id.slice(-9)}</span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="text-xs font-semibold text-slate-800 flex items-center gap-1">
+                            <Clock size={11} className="text-slate-400" /> {trx.time} WIB
+                          </div>
+                          <div className="text-[10px] text-slate-400">{trx.date}</div>
+                        </td>
+                        <td className="px-5 py-3 max-w-[180px]">
+                          <div className="text-xs text-slate-700 truncate">{trx.items}</div>
+                          <div className="text-[10px] text-slate-400">{trx.itemCount} jenis produk</div>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${paymentColor(trx.payment)}`}>
+                            {paymentIcon(trx.payment)}{trx.payment}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="text-sm font-extrabold text-slate-900">{formatRp(trx.total)}</div>
+                          {trx.status === 'refund' && (
+                            <span className="text-[10px] font-bold text-rose-600">REFUND</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3">
+                          <button
+                            onClick={() => setReceiptTrx(trx)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 hover:text-[#057A55] text-slate-600 text-xs font-semibold transition-all duration-200 cursor-pointer active:scale-95"
+                          >
+                            <Eye size={12} /> Lihat Struk
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
 
             {/* Mobile cards */}
-            <div className="md:hidden divide-y divide-slate-50">
-              {visibleTrx.map(trx => (
-                <div key={trx.id} className={`p-4 flex items-center gap-3 ${trx.status === 'refund' ? 'opacity-60' : ''}`}>
-                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#057A55] flex items-center justify-center shrink-0">
-                    <Receipt size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-mono text-xs font-bold text-slate-600">{trx.id.slice(-9)}</span>
-                      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${paymentColor(trx.payment)}`}>
-                        {paymentIcon(trx.payment)}{trx.payment}
-                      </span>
+            {visibleTrx.length === 0 ? (
+              <div className="md:hidden py-10 text-center p-4 text-slate-400">
+                <Receipt size={32} className="mx-auto mb-2 text-slate-300" />
+                <p className="text-xs font-bold text-slate-700">Belum Ada Transaksi</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Transaksi untuk periode ini belum tersedia.</p>
+              </div>
+            ) : (
+              <div className="md:hidden divide-y divide-slate-50">
+                {visibleTrx.map(trx => (
+                  <div key={trx.id} className={`p-4 flex items-center gap-3 ${trx.status === 'refund' ? 'opacity-60' : ''}`}>
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#057A55] flex items-center justify-center shrink-0">
+                      <Receipt size={18} />
                     </div>
-                    <p className="text-[11px] text-slate-400 truncate">{trx.items}</p>
-                    <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                      <Clock size={10} /> {trx.time} • {trx.date}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="font-mono text-xs font-bold text-slate-600">{trx.id.slice(-9)}</span>
+                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${paymentColor(trx.payment)}`}>
+                          {paymentIcon(trx.payment)}{trx.payment}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 truncate">{trx.items}</p>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                        <Clock size={10} /> {trx.time} • {trx.date}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-extrabold text-slate-900">{formatRp(trx.total, true)}</div>
+                      <button
+                        onClick={() => setReceiptTrx(trx)}
+                        className="text-[11px] text-[#057A55] font-semibold mt-1 hover:underline cursor-pointer flex items-center gap-0.5 ml-auto"
+                      >
+                        <Eye size={11} /> Struk
+                      </button>
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-extrabold text-slate-900">{formatRp(trx.total, true)}</div>
-                    <button
-                      onClick={() => setReceiptTrx(trx)}
-                      className="text-[11px] text-[#057A55] font-semibold mt-1 hover:underline cursor-pointer flex items-center gap-0.5 ml-auto"
-                    >
-                      <Eye size={11} /> Struk
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

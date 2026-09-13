@@ -1,11 +1,13 @@
 import React from 'react';
 import { LayoutDashboard, Package, ShoppingBag, BarChart3 } from 'lucide-react';
+import { useAuth } from '../Context/AuthContext';
 
 export interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string; size?: number | string; strokeWidth?: number | string }>;
   badge?: string | number;
+  ownerOnly?: boolean;
 }
 
 export interface BottomNavigationProps {
@@ -14,7 +16,7 @@ export interface BottomNavigationProps {
   className?: string;
 }
 
-const navItems: NavItem[] = [
+const allNavItems: NavItem[] = [
   {
     name: 'Beranda',
     href: '/',
@@ -24,7 +26,7 @@ const navItems: NavItem[] = [
     name: 'Stok',
     href: '/inventory',
     icon: Package,
-    badge: '4', // Critical stock alert count
+    badge: '4',
   },
   {
     name: 'Kasir',
@@ -35,6 +37,7 @@ const navItems: NavItem[] = [
     name: 'Laporan',
     href: '/reports',
     icon: BarChart3,
+    ownerOnly: true,
   },
 ];
 
@@ -43,8 +46,22 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onNavigate,
   className = '',
 }) => {
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+  const { isCashier, isManagerAuthorized, switchRole, isOwner, openPinModal } = useAuth();
+
+  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string, isLocked: boolean = false) => {
     e.preventDefault();
+    if (isLocked) {
+      openPinModal(() => {
+        if (onNavigate) {
+          onNavigate(href);
+        } else {
+          window.history.pushState({}, '', href);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      });
+      return;
+    }
+
     if (onNavigate) {
       onNavigate(href);
     } else {
@@ -60,15 +77,41 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
     return currentPath.startsWith(href);
   };
 
+  // When cashier, show reports only if temporary authorization is active or as locked trigger
+  const visibleNavItems = allNavItems.filter((item) => {
+    if (item.ownerOnly && isCashier && !isManagerAuthorized) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <nav
       aria-label="Bottom Navigation"
       className={`fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-50 pointer-events-none md:hidden ${className}`}
     >
       <div className="w-full pointer-events-auto">
-        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 py-2 safe-area-pb">
+        <div className="bg-white/95 backdrop-blur-md border-t border-slate-200/80 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-3 py-1.5 safe-area-pb">
+          {/* Mobile Role Indicator & Switch Pill */}
+          <div className="flex items-center justify-between px-2 pb-1.5 mb-1 border-b border-slate-100 text-[10px]">
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <span className={`w-2 h-2 rounded-full ${isOwner ? 'bg-emerald-500' : isManagerAuthorized ? 'bg-amber-500 animate-pulse' : 'bg-indigo-500'}`} />
+              <span>
+                Role: <strong className={isOwner ? 'text-emerald-700' : 'text-indigo-700'}>
+                  {isOwner ? 'Juragan Budi (Owner)' : isManagerAuthorized ? 'Kasir Siti (Otorisasi PIN)' : 'Kasir Siti (Kasir)'}
+                </strong>
+              </span>
+            </div>
+            <button
+              onClick={() => switchRole(isOwner ? 'cashier' : 'owner')}
+              className="text-[10px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-100 hover:bg-emerald-50 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+            >
+              Ganti ke {isOwner ? 'Kasir' : 'Owner'}
+            </button>
+          </div>
+
           <div className="flex items-center justify-around">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = isCurrentActive(item.href);
               const Icon = item.icon;
 
@@ -91,12 +134,12 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
                     }`}
                   >
                     <Icon
-                      size={22}
+                      size={20}
                       strokeWidth={active ? 2.4 : 1.8}
                       className="transition-colors duration-200"
                     />
                     {item.badge && (
-                      <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
+                      <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center ring-2 ring-white">
                         {item.badge}
                       </span>
                     )}

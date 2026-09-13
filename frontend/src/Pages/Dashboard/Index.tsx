@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
+import { useAuth } from '../../Context/AuthContext';
 import {
   Store,
   Bell,
@@ -23,6 +24,7 @@ export interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
+  const { currentUser, isOwner } = useAuth();
   const [storeOpen, setStoreOpen] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<'hari_ini' | 'minggu_ini'>('hari_ini');
 
@@ -188,7 +190,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </button>
               </div>
               <p className="text-xs md:text-sm text-emerald-100/90 font-normal mt-0.5">
-                Halo, Juragan Budi 👋 • Pantau performa tokomu hari ini
+                Halo, {currentUser.name} 👋 • {isOwner ? 'Pantau performa tokomu hari ini' : 'Siap melayani transaksi kasir hari ini'}
               </p>
             </div>
           </div>

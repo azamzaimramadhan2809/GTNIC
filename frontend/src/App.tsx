@@ -3,9 +3,15 @@ import Login from './Pages/Auth/Login';
 import Dashboard from './Pages/Dashboard/Index';
 import Inventory from './Pages/Inventory/Index';
 import Pos from './Pages/Pos/Index';
+import Customers from './Pages/Customers/Index';
 import Reports from './Pages/Reports/Index';
+import Settings from './Pages/Settings/Index';
+import { AuthProvider, useAuth } from './Context/AuthContext';
+import RoleGuard from './Components/RoleGuard';
 
-export function App() {
+function AppContent() {
+  const { isCashier, isManagerAuthorized, revokeManagerAuthorization } = useAuth();
+
   // Read path from window.location.pathname or fallback to '/'
   const [currentPath, setCurrentPath] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -24,6 +30,16 @@ export function App() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  // AUTO-LOCK ON NAVIGATION EXIT:
+  // When Cashier leaves sensitive manager pages (/reports, /settings) and returns to POS, Beranda, etc.,
+  // automatically revoke temporary manager authorization so returning later requires PIN again.
+  useEffect(() => {
+    const isProtectedPage = currentPath.startsWith('/reports') || currentPath.startsWith('/settings');
+    if (!isProtectedPage && isCashier && isManagerAuthorized) {
+      revokeManagerAuthorization();
+    }
+  }, [currentPath, isCashier, isManagerAuthorized, revokeManagerAuthorization]);
 
   // Programmatic navigation handler
   const navigate = (path: string) => {
@@ -48,8 +64,30 @@ export function App() {
         return <Inventory onNavigate={(path) => navigate(path)} />;
       case '/pos':
         return <Pos onNavigate={(path) => navigate(path)} />;
+      case '/customers':
+        return <Customers onNavigate={(path) => navigate(path)} />;
       case '/reports':
-        return <Reports onNavigate={(path) => navigate(path)} />;
+        return (
+          <RoleGuard
+            allowedRoles={['owner']}
+            pageTitle="Laporan Keuangan"
+            currentPath={currentPath}
+            onNavigate={(path) => navigate(path)}
+          >
+            <Reports onNavigate={(path) => navigate(path)} />
+          </RoleGuard>
+        );
+      case '/settings':
+        return (
+          <RoleGuard
+            allowedRoles={['owner']}
+            pageTitle="Pengaturan Toko"
+            currentPath={currentPath}
+            onNavigate={(path) => navigate(path)}
+          >
+            <Settings onNavigate={(path) => navigate(path)} />
+          </RoleGuard>
+        );
       case '/':
       case '/dashboard':
       default:
@@ -61,6 +99,14 @@ export function App() {
     <div className="w-full h-full max-h-screen overflow-hidden bg-slate-100 flex flex-col justify-start">
       {renderRoute()}
     </div>
+  );
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

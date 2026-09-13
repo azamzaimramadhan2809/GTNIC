@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
+import { useAuth } from '../../Context/AuthContext';
 import {
   Plus,
   Search,
@@ -22,6 +23,7 @@ import {
   MoreVertical,
   ClipboardList,
   Truck,
+  Lock,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────
@@ -155,7 +157,7 @@ const Modal: React.FC<{ open: boolean; onClose: () => void; children: React.Reac
     <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center p-0 md:p-4">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onClose}
       />
       {/* Panel */}
@@ -205,6 +207,7 @@ const inputCls = 'w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 
 // Main Component
 // ─────────────────────────────────────────────
 export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
+  const { isCashier, openPinModal } = useAuth();
   const [items, setItems] = useState<InventoryItem[]>(INITIAL_ITEMS);
 
   // Filters
@@ -357,12 +360,27 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
   };
 
   const openRestock = (id: number) => {
+    if (isCashier) {
+      openPinModal(() => {
+        setRestockTargetId(id);
+        setRestockForm(EMPTY_RESTOCK);
+        setRestockModalOpen(true);
+      });
+      return;
+    }
     setRestockTargetId(id);
     setRestockForm(EMPTY_RESTOCK);
     setRestockModalOpen(true);
   };
 
   const openEdit = (item: InventoryItem) => {
+    if (isCashier) {
+      openPinModal(() => {
+        setEditItem({ ...item });
+        setEditModalOpen(true);
+      });
+      return;
+    }
     setEditItem({ ...item });
     setEditModalOpen(true);
   };
@@ -380,10 +398,31 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
   };
 
   const handleDelete = (id: number) => {
+    if (isCashier) {
+      openPinModal(() => {
+        const name = items.find(i => i.id === id)?.name;
+        setItems(prev => prev.filter(i => i.id !== id));
+        setDeleteConfirmId(null);
+        showToast(`🗑️ "${name}" dihapus dari inventaris.`, 'info');
+      });
+      return;
+    }
     const name = items.find(i => i.id === id)?.name;
     setItems(prev => prev.filter(i => i.id !== id));
     setDeleteConfirmId(null);
     showToast(`🗑️ "${name}" dihapus dari inventaris.`, 'info');
+  };
+
+  const handleOpenAdd = () => {
+    if (isCashier) {
+      openPinModal(() => {
+        setNewItemForm(EMPTY_NEW_ITEM);
+        setAddModalOpen(true);
+      });
+      return;
+    }
+    setNewItemForm(EMPTY_NEW_ITEM);
+    setAddModalOpen(true);
   };
 
   const restockTarget = items.find(i => i.id === restockTargetId);
@@ -439,9 +478,17 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             <div className="flex items-center gap-2.5 mb-0.5">
               <ClipboardList size={20} className="text-emerald-200" />
               <h1 className="text-lg md:text-2xl font-bold text-white leading-tight">Manajemen Inventaris</h1>
+              {isCashier && (
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/40 text-amber-200 text-[10px] font-bold tracking-wide uppercase flex items-center gap-1">
+                  <Lock size={10} />
+                  <span>Hanya Baca</span>
+                </span>
+              )}
             </div>
             <p className="text-xs md:text-sm text-emerald-100/90 mt-0.5">
-              Kelola stok barang, pantau ketersediaan, dan atur harga jual toko
+              {isCashier
+                ? 'Mode Kasir aktif: Anda dapat melihat stok barang untuk melayani transaksi kasir.'
+                : 'Kelola stok barang, pantau ketersediaan, dan atur harga jual toko'}
             </p>
           </div>
 
@@ -449,20 +496,34 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => { setRestockTargetId(null); setRestockForm(EMPTY_RESTOCK); setRestockModalOpen(true); }}
+              onClick={() => {
+                if (isCashier) {
+                  openPinModal(() => {
+                    setRestockTargetId(null);
+                    setRestockForm(EMPTY_RESTOCK);
+                    setRestockModalOpen(true);
+                  });
+                } else {
+                  setRestockTargetId(null);
+                  setRestockForm(EMPTY_RESTOCK);
+                  setRestockModalOpen(true);
+                }
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-white/15 backdrop-blur-md border border-white/20 text-white hover:bg-white/25 rounded-xl text-xs md:text-sm font-semibold transition-all active:scale-95 cursor-pointer"
             >
               <Truck size={15} />
               <span>Restok Cepat</span>
+              {isCashier && <Lock size={12} className="opacity-70" />}
             </button>
 
             <button
               type="button"
-              onClick={() => { setNewItemForm(EMPTY_NEW_ITEM); setAddModalOpen(true); }}
+              onClick={handleOpenAdd}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-white text-[#057A55] hover:bg-emerald-50 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
             >
               <Plus size={16} />
               <span>Tambah Barang Baru</span>
+              {isCashier && <Lock size={12} className="text-[#057A55]/70" />}
             </button>
           </div>
         </div>
@@ -1209,6 +1270,45 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           </>
         )}
       </Modal>
+
+      {/* ════════════════════════════════════════
+          MODAL: KONFIRMASI HAPUS BARANG
+      ════════════════════════════════════════ */}
+      {deleteConfirmId !== null && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setDeleteConfirmId(null)}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center space-y-4">
+            <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto shadow-sm">
+              <Trash2 size={26} />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900">Hapus Barang?</h3>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Apakah Anda yakin ingin menghapus <strong className="text-slate-800 font-semibold">{items.find(i => i.id === deleteConfirmId)?.name}</strong> dari daftar inventaris? Tindakan ini tidak dapat dibatalkan.
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all duration-200 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDelete(deleteConfirmId)}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold transition-all duration-200 shadow-md shadow-rose-600/20 cursor-pointer active:scale-95"
+              >
+                Hapus Barang
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </AppLayout>
   );
