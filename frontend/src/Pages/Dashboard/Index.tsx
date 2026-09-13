@@ -1,3 +1,4 @@
+import { useSession, useData, dateRange, type Report, type Ingredient } from '../../api';
 import React, { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
@@ -35,128 +36,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     }
   };
 
-  const periodData = {
-    hari_ini: {
-      omset: 'Rp 1.450.000',
-      omsetTrend: '+12.5% vs kemarin',
-      transaksi: '48 Struk',
-      transaksiAvg: 'Rata-rata 30.2rb',
-      keuntungan: 'Rp 420.000',
-      margin: '29.0% Margin laba',
-      topSelling: [
-        {
-          id: 1,
-          name: 'Kopi Susu Gula Aren',
-          category: 'Minuman Dingin',
-          sold: 18,
-          revenue: 'Rp 270.000',
-          percentage: 88,
-          color: 'bg-emerald-600',
-          badge: '🥇 #1 Terlaris',
-        },
-        {
-          id: 2,
-          name: 'Indomie Goreng + Telur Kornet',
-          category: 'Makanan Siap Saji',
-          sold: 14,
-          revenue: 'Rp 210.000',
-          percentage: 64,
-          color: 'bg-teal-600',
-          badge: '🥈 #2 Populer',
-        },
-        {
-          id: 3,
-          name: 'Es Teh Manis Jumbo',
-          category: 'Minuman Dingin',
-          sold: 22,
-          revenue: 'Rp 132.000',
-          percentage: 48,
-          color: 'bg-amber-500',
-          badge: '🥉 #3 Favorit',
-        },
-      ],
-    },
-    minggu_ini: {
-      omset: 'Rp 10.180.000',
-      omsetTrend: '+18.2% vs minggu lalu',
-      transaksi: '312 Struk',
-      transaksiAvg: 'Rata-rata 32.6rb',
-      keuntungan: 'Rp 2.850.000',
-      margin: '28.0% Margin laba',
-      topSelling: [
-        {
-          id: 1,
-          name: 'Kopi Susu Gula Aren',
-          category: 'Minuman Dingin',
-          sold: 142,
-          revenue: 'Rp 2.130.000',
-          percentage: 88,
-          color: 'bg-emerald-600',
-          badge: '🥇 #1 Terlaris',
-        },
-        {
-          id: 2,
-          name: 'Indomie Goreng + Telur Kornet',
-          category: 'Makanan Siap Saji',
-          sold: 98,
-          revenue: 'Rp 1.470.000',
-          percentage: 64,
-          color: 'bg-teal-600',
-          badge: '🥈 #2 Populer',
-        },
-        {
-          id: 3,
-          name: 'Es Teh Manis Jumbo',
-          category: 'Minuman Dingin',
-          sold: 183,
-          revenue: 'Rp 1.098.000',
-          percentage: 52,
-          color: 'bg-amber-500',
-          badge: '🥉 #3 Favorit',
-        },
-      ],
-    },
-  };
-
-  const currentData = periodData[selectedPeriod];
-  const topSellingItems = currentData.topSelling;
-
-  const criticalStockList = [
-    { name: 'Minyak Goreng Sania 2L', remaining: '2 pouch', min: '10 pouch' },
-    { name: 'Telur Ayam Negeri 1kg', remaining: '3.5 kg', min: '15 kg' },
-    { name: 'Beras Ramos Super 5kg', remaining: '1 karung', min: '8 karung' },
-    { name: 'Gula Pasir Gulaku 1kg', remaining: '4 pack', min: '12 pack' },
-  ];
-
-  const recentTransactions = [
-    {
-      id: 'TRX-9824',
-      time: '10:42 WIB',
-      items: 'Kopi Susu (2), Indomie Goreng (1)',
-      total: 'Rp 45.000',
-      payment: 'QRIS Gopay',
-      status: 'Selesai',
-    },
-    {
-      id: 'TRX-9823',
-      time: '10:15 WIB',
-      items: 'Rokok Surya 16 (1), Es Teh (2)',
-      total: 'Rp 52.000',
-      payment: 'Tunai',
-      status: 'Selesai',
-    },
-    {
-      id: 'TRX-9822',
-      time: '09:50 WIB',
-      items: 'Minyak Goreng 2L (1), Telur 1kg',
-      total: 'Rp 68.500',
-      payment: 'Transfer BCA',
-      status: 'Selesai',
-    },
-  ];
+  const {warung,user}=useSession();
+  const range=dateRange(selectedPeriod);
+  const {data:report,error}=useData<Report>('/warungs/'+warung.id+'/reports?date_from='+range.from+'&date_to='+range.to);
+  const {data:stockData}=useData<{low_stock_ingredients:Ingredient[]}>('/warungs/'+warung.id+'/dashboard');
+  const money=(value:number)=>'Rp '+value.toLocaleString('id-ID');
+  const currentData={omset:money(report?.summary.revenue??0),omsetTrend:'Penjualan tanpa pajak',transaksi:(report?.summary.sales_count??0)+' Struk',transaksiAvg:'Rata-rata '+money(report?.summary.average_order??0),keuntungan:money(report?.summary.estimated_profit??0),margin:(report?.summary.profit_margin??0)+'% estimasi margin'};
+  const topSellingItems=(report?.top_products??[]).slice(0,3).map(p=>({...p,revenue:money(p.revenue),color:'bg-emerald-600',badge:'#'+p.rank+' Terlaris'}));
+  const criticalStockList=(stockData?.low_stock_ingredients??[]).map(i=>({name:i.name,remaining:i.stock+' '+i.unit,min:i.minimum_stock+' '+i.unit}));
+  const recentTransactions=(report?.transactions??[]).slice(0,5).map(t=>({...t,total:money(t.total),status:t.status==='selesai'?'Selesai':'Dibatalkan'}));
 
   return (
     <AppLayout title="Dashboard Beranda" currentPath="/" onNavigate={handleNav}>
+      {error && <p role="alert" className="p-3 text-red-600">{error}</p>}
+      {!report && !error && <p className="p-3">Memuat dashboard...</p>}
       {/* Header Section: Mobile curved header vs Desktop sleek banner */}
       <div className="bg-[#057A55] text-white pt-6 pb-6 px-5 rounded-b-[28px] md:rounded-2xl md:p-6 md:mb-6 shadow-lg shadow-emerald-950/15 relative overflow-hidden">
         {/* Subtle decorative background glows */}
@@ -172,7 +65,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base md:text-xl font-bold tracking-tight text-white leading-tight">
-                  Warung Berkah Jaya
+                  {warung.name}
                 </h1>
                 <button
                   type="button"
@@ -188,7 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </button>
               </div>
               <p className="text-xs md:text-sm text-emerald-100/90 font-normal mt-0.5">
-                Halo, Juragan Budi 👋 • Pantau performa tokomu hari ini
+                Halo, {user.name} 👋 • Pantau performa tokomu hari ini
               </p>
             </div>
           </div>
@@ -303,7 +196,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               {/* Card 3: Keuntungan */}
               <div className="bg-gradient-to-br from-amber-50 to-orange-50/40 rounded-xl md:rounded-2xl p-3 md:p-4 border border-amber-100 flex flex-col justify-between hover:shadow-sm transition-shadow">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] md:text-xs font-semibold text-slate-600">Keuntungan Bersih</span>
+                  <span className="text-[11px] md:text-xs font-semibold text-slate-600">Estimasi Laba</span>
                   <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700">
                     <Sparkles size={15} />
                   </div>
@@ -371,7 +264,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     />
                   </div>
                   <div className="flex justify-between text-[10px] md:text-xs text-slate-500 mt-1.5 font-medium">
-                    <span>Pencapaian Target Harian</span>
+                    <span>Kontribusi Penjualan</span>
                     <span className="font-bold text-slate-700">{item.percentage}%</span>
                   </div>
                 </div>
@@ -448,7 +341,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     Peringatan Stok Kritis
                   </span>
                   <span className="text-[10px] md:text-xs font-bold bg-white text-amber-800 px-2 py-0.5 rounded-full shadow-xs">
-                    4 Item Menipis
+                    {criticalStockList.length} Bahan Menipis
                   </span>
                 </div>
                 <p className="text-xs md:text-sm text-white/95 mt-1.5 leading-snug">
@@ -457,6 +350,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
                 {/* Stock Items Breakdown */}
                 <div className="mt-3 space-y-1.5 bg-black/15 p-2.5 rounded-xl border border-white/10">
+                  {criticalStockList.length === 0 && (
+                    <p className="text-[11px] md:text-xs text-amber-50">Semua stok bahan berada di atas batas minimum.</p>
+                  )}
                   {criticalStockList.map((st, i) => (
                     <div key={i} className="flex items-center justify-between text-[11px] md:text-xs text-amber-50">
                       <span className="truncate pr-2">• {st.name}</span>
@@ -474,7 +370,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     onClick={() => handleNav('/inventory')}
                     className="w-full md:w-auto bg-white text-amber-800 hover:bg-amber-50 px-3.5 py-2 rounded-xl text-xs md:text-sm font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    <span>Restok Barang Sekarang</span>
+                    <span>Restok Bahan Sekarang</span>
                     <ArrowRight size={15} />
                   </button>
                 </div>

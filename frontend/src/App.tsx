@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import Login from './Pages/Auth/Login';
+import { api } from './api';
+import { SessionGate } from './SessionGate';
 import Dashboard from './Pages/Dashboard/Index';
 import Inventory from './Pages/Inventory/Index';
 import Pos from './Pages/Pos/Index';
 import Reports from './Pages/Reports/Index';
+import ResetPassword from './Pages/Auth/ResetPassword';
+import Register from './Pages/Auth/Register';
 
-export function App() {
+function RoutedApp() {
   // Read path from window.location.pathname or fallback to '/'
   const [currentPath, setCurrentPath] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -27,6 +30,14 @@ export function App() {
 
   // Programmatic navigation handler
   const navigate = (path: string) => {
+    if (path === '/login') {
+      void api('/logout', {method: 'POST'}).finally(() => {
+        sessionStorage.removeItem('nexa_token');
+        localStorage.removeItem('nexa_token');
+        window.dispatchEvent(new Event('nexa:logout'));
+      });
+      return;
+    }
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path);
     }
@@ -37,13 +48,6 @@ export function App() {
   // Route resolver
   const renderRoute = () => {
     switch (currentPath) {
-      case '/login':
-        return (
-          <Login
-            onLoginSuccess={() => navigate('/')}
-            onNavigate={(path) => navigate(path)}
-          />
-        );
       case '/inventory':
         return <Inventory onNavigate={(path) => navigate(path)} />;
       case '/pos':
@@ -64,4 +68,14 @@ export function App() {
   );
 }
 
+export function App() {
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPassword />;
+  }
+  if (window.location.pathname === '/register') {
+    return <Register />;
+  }
+
+  return <SessionGate><RoutedApp /></SessionGate>;
+}
 export default App;

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\StockMovement;
 use App\Models\Warung;
+use Carbon\Carbon;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -65,6 +66,7 @@ class StockMovementController extends Controller
             'type' => ['required', Rule::in(['purchase', 'adjustment', 'return'])],
             'quantity' => ['required', 'numeric', 'not_in:0'],
             'note' => ['nullable', 'string'],
+            'occurred_at' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
         ]);
 
         if (in_array($validated['type'], ['purchase', 'return'], true)
@@ -88,11 +90,17 @@ class StockMovementController extends Controller
 
             $ingredient->update(['stock' => $newStock]);
 
-            return $warung->stockMovements()->create([
+            $occurredAt = $validated['occurred_at'] ?? null;
+            unset($validated['occurred_at']);
+            $movement = $warung->stockMovements()->make([
                 ...$validated,
                 'reference_type' => null,
                 'reference_id' => null,
             ]);
+            $movement->created_at = $occurredAt ? Carbon::parse($occurredAt) : now();
+            $movement->save();
+
+            return $movement;
         });
 
         return response()->json([

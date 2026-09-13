@@ -20,7 +20,7 @@ class MenuController extends Controller
             'menus' => $warung->menus()
                 ->with([
                     'category:id,name',
-                    'menuIngredients.ingredient:id,name,unit',
+                    'menuIngredients.ingredient:id,name,stock,unit',
                 ])
                 ->when(
                     $request->filled('search'),
@@ -45,7 +45,13 @@ class MenuController extends Controller
                     )
                 )
                 ->latest()
-                ->paginate(15),
+                ->paginate(15)->through(function (Menu $menu): Menu {
+                    $menu->setAttribute('available_stock', $menu->is_available && $menu->menuIngredients->isNotEmpty()
+                        ? (int) $menu->menuIngredients->min(fn ($recipe) => $recipe->ingredient && (float) $recipe->quantity > 0
+                            ? floor((float) $recipe->ingredient->stock / (float) $recipe->quantity) : 0) : 0);
+
+                    return $menu;
+                }),
         ]);
     }
 

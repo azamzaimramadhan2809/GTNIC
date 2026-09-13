@@ -1,3 +1,4 @@
+import { api, allPages, useSession, message, type Menu, type Sale } from '../../api';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
@@ -29,7 +30,7 @@ export interface Product {
   id: number;
   code: string;
   name: string;
-  category: 'Sembako' | 'Minuman' | 'Makanan' | 'Rokok' | 'Snack';
+  category: string;
   price: number;
   stock: number;
   unit: string;
@@ -42,135 +43,6 @@ export interface CartItem {
   quantity: number;
 }
 
-const PRODUCTS_DATA: Product[] = [
-  {
-    id: 1,
-    code: 'KOP-001',
-    name: 'Kopi Susu Gula Aren',
-    category: 'Minuman',
-    price: 15000,
-    stock: 45,
-    unit: 'cup',
-    imageIcon: '☕',
-    badge: 'Best Seller',
-  },
-  {
-    id: 2,
-    code: 'MIN-002',
-    name: 'Minyak Goreng Sania 2L',
-    category: 'Sembako',
-    price: 36500,
-    stock: 2, // Low stock
-    unit: 'pouch',
-    imageIcon: '🌻',
-    badge: 'Stok Kritis',
-  },
-  {
-    id: 3,
-    code: 'BER-003',
-    name: 'Beras Ramos Super 5kg',
-    category: 'Sembako',
-    price: 75000,
-    stock: 3, // Low stock
-    unit: 'karung',
-    imageIcon: '🌾',
-  },
-  {
-    id: 4,
-    code: 'IND-004',
-    name: 'Indomie Goreng + Telur',
-    category: 'Makanan',
-    price: 15000,
-    stock: 60,
-    unit: 'porsi',
-    imageIcon: '🍜',
-    badge: 'Favorit',
-  },
-  {
-    id: 5,
-    code: 'TEL-005',
-    name: 'Telur Ayam Negeri 1kg',
-    category: 'Sembako',
-    price: 29000,
-    stock: 4, // Low stock
-    unit: 'kg',
-    imageIcon: '🥚',
-  },
-  {
-    id: 6,
-    code: 'ROK-006',
-    name: 'Rokok Gudang Garam Surya 16',
-    category: 'Rokok',
-    price: 35000,
-    stock: 24,
-    unit: 'bungkus',
-    imageIcon: '🚬',
-  },
-  {
-    id: 7,
-    code: 'TEH-007',
-    name: 'Es Teh Manis Jumbo',
-    category: 'Minuman',
-    price: 6000,
-    stock: 80,
-    unit: 'cup',
-    imageIcon: '🧊',
-  },
-  {
-    id: 8,
-    code: 'ROT-008',
-    name: 'Roti Bakar Coklat Keju',
-    category: 'Makanan',
-    price: 18000,
-    stock: 20,
-    unit: 'porsi',
-    imageIcon: '🍞',
-  },
-  {
-    id: 9,
-    code: 'GUL-009',
-    name: 'Gula Pasir Gulaku 1kg',
-    category: 'Sembako',
-    price: 18500,
-    stock: 5,
-    unit: 'pack',
-    imageIcon: '🍬',
-  },
-  {
-    id: 10,
-    code: 'MIN-010',
-    name: 'Air Mineral Le Minerale 600ml',
-    category: 'Minuman',
-    price: 4000,
-    stock: 96,
-    unit: 'botol',
-    imageIcon: '💧',
-  },
-  {
-    id: 11,
-    code: 'SNK-011',
-    name: 'Chitato Sapi Panggang 68g',
-    category: 'Snack',
-    price: 11500,
-    stock: 18,
-    unit: 'bungkus',
-    imageIcon: '🥔',
-  },
-  {
-    id: 12,
-    code: 'ROK-012',
-    name: 'Sampoerna A Mild 16',
-    category: 'Rokok',
-    price: 36000,
-    stock: 30,
-    unit: 'bungkus',
-    imageIcon: '🚬',
-  },
-];
-
-const CATEGORIES = ['Semua', 'Sembako', 'Minuman', 'Makanan', 'Rokok', 'Snack'];
-
-// Web Audio API Beep Synthesizer for POS feedback
 const playBeep = () => {
   try {
     const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -193,12 +65,19 @@ const playBeep = () => {
 };
 
 export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
+  const {warung} = useSession();
+  const base = '/warungs/' + warung.id;
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
+  const refreshProducts = () => allPages<Menu>(base+'/menus','menus').then(menus=>setProducts(menus.map(m=>({id:m.id,code:'MENU-'+m.id,name:m.name,category:m.category?.name??'Tanpa kategori',price:Number(m.price),stock:m.available_stock,unit:'porsi',imageIcon:'🍽️'}))));
+  useEffect(()=>{let active=true;allPages<Menu>(base+'/menus','menus').then(menus=>{if(active){setProducts(menus.map(m=>({id:m.id,code:'MENU-'+m.id,name:m.name,category:m.category?.name??'Tanpa kategori',price:Number(m.price),stock:m.available_stock,unit:'porsi',imageIcon:'🍽️'})));setLoading(false);}}).catch(e=>{if(active){setLoadError(message(e));setLoading(false);}});return()=>{active=false;};},[base]);
+  const CATEGORIES = ['Semua', ...new Set(products.map(p=>p.category))];
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [cart, setCart] = useState<Record<number, CartItem>>({
-    1: { product: PRODUCTS_DATA[0], quantity: 2 },
-    4: { product: PRODUCTS_DATA[3], quantity: 1 },
-  });
+  const [cart, setCart] = useState<Record<number, CartItem>>({});
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'qris' | 'transfer'>('cash');
   const [cashGiven, setCashGiven] = useState<string>('50000');
@@ -214,14 +93,14 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
   const [scannedCountSession, setScannedCountSession] = useState<number>(0);
 
   // Toast Notification State
-  const [toastMessage, setToastMessage] = useState<{ text: string; icon: string; id: number } | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; icon: string } | null>(null);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const showToast = (text: string, icon: string = '✅') => {
     if (toastTimeoutRef.current) {
       clearTimeout(toastTimeoutRef.current);
     }
-    setToastMessage({ text, icon, id: Date.now() });
+    setToastMessage({ text, icon });
     toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
     }, 2200);
@@ -248,7 +127,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
-    return PRODUCTS_DATA.filter((item) => {
+    return products.filter((item) => {
       const matchCategory =
         selectedCategory === 'Semua' || item.category === selectedCategory;
       const matchSearch =
@@ -256,7 +135,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
         item.code.toLowerCase().includes(searchQuery.toLowerCase());
       return matchCategory && matchSearch;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [selectedCategory, searchQuery, products]);
 
   // Cart calculations
   const cartList = useMemo(() => Object.values(cart), [cart]);
@@ -280,36 +159,33 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
 
   // Add item to cart with feedback
   const handleAddToCart = (product: Product, isFromScanner: boolean = false) => {
-    setCart((prev) => {
-      const currentQty = prev[product.id]?.quantity || 0;
-      if (currentQty >= product.stock) {
-        showToast(`Stok ${product.name} habis/maksimum (${product.stock})`, '⚠️');
-        return prev;
-      }
+    const currentQty = cart[product.id]?.quantity || 0;
+    if (currentQty >= product.stock) {
+      showToast(`Stok ${product.name} habis/maksimum (${product.stock})`, '⚠️');
+      return;
+    }
 
-      playBeep();
-      showToast(`+1 ${product.name} dimasukkan ke keranjang`, product.imageIcon);
+    setCart((prev) => ({
+      ...prev,
+      [product.id]: {
+        product,
+        quantity: Math.min((prev[product.id]?.quantity || 0) + 1, product.stock),
+      },
+    }));
 
-      if (isFromScanner) {
-        setScanFlash(true);
-        setTimeout(() => setScanFlash(false), 250);
-        setScannedCountSession((c) => c + 1);
-      }
+    playBeep();
+    showToast(`+1 ${product.name} dimasukkan ke keranjang`, product.imageIcon);
 
-      return {
-        ...prev,
-        [product.id]: {
-          product,
-          quantity: currentQty + 1,
-        },
-      };
-    });
+    if (isFromScanner) {
+      setScanFlash(true);
+      setTimeout(() => setScanFlash(false), 250);
+      setScannedCountSession((c) => c + 1);
+    }
   };
-
   // Scan SKU code
   const handleScanCode = (code: string) => {
     const trimmed = code.trim().toUpperCase();
-    const product = PRODUCTS_DATA.find(
+    const product = products.find(
       (p) => p.code.toUpperCase() === trimmed || p.name.toLowerCase().includes(trimmed.toLowerCase())
     );
 
@@ -377,47 +253,17 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
   }, [totalAmount]);
 
   // Process checkout & open receipt modal
-  const handleProcessPayment = () => {
-    if (cartList.length === 0) {
-      alert('Keranjang belanja masih kosong!');
-      return;
-    }
-    if (paymentMethod === 'cash' && numericCashGiven < totalAmount) {
-      alert('Uang tunai yang diterima kurang dari total tagihan!');
-      return;
-    }
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    const trxId = `TRX-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const transaction = {
-      id: trxId,
-      date: dateStr,
-      items: [...cartList],
-      subtotal,
-      tax: taxAmount,
-      discount: discountAmount,
-      total: totalAmount,
-      paymentMethod:
-        paymentMethod === 'cash'
-          ? 'Tunai (Cash)'
-          : paymentMethod === 'qris'
-          ? 'QRIS GoPay / OVO'
-          : 'Transfer Bank',
-      cashGiven: paymentMethod === 'cash' ? numericCashGiven : totalAmount,
-      change: paymentMethod === 'cash' ? changeAmount : 0,
-    };
-
-    setLastTransaction(transaction);
-    setShowReceiptModal(true);
-    setIsMobileCartOpen(false);
+  const handleProcessPayment = async () => {
+    if(processingRef.current || showReceiptModal || cartList.length===0)return;
+    if(paymentMethod!=='cash' && !window.confirm('Konfirmasi pembayaran '+paymentMethod.toUpperCase()+' sudah diterima? Status ini dicatat manual, tanpa deteksi otomatis.'))return;
+    processingRef.current=true;setProcessing(true);
+    try {
+      const result=await api<{sale:Sale}>(base+'/sales',{method:'POST',body:JSON.stringify({items:cartList.map(i=>({menu_id:i.product.id,quantity:i.quantity})),discount:discountAmount,tax:taxAmount,payment:{method:paymentMethod,received_amount:numericCashGiven}})});
+      const sale=result.sale;
+      setLastTransaction({id:'TRX-'+sale.id,date:new Date(sale.created_at).toLocaleString('id-ID'),items:[...cartList],subtotal:Number(sale.subtotal),tax:Number(sale.tax),discount:Number(sale.discount),total:Number(sale.total),paymentMethod:sale.payment.method,cashGiven:Number(sale.payment.received_amount),change:Number(sale.payment.change_amount)});
+      setCart({});setShowReceiptModal(true);setIsMobileCartOpen(false);
+      await refreshProducts().catch(()=>showToast('Transaksi tersimpan. Muat ulang halaman untuk memperbarui stok.','⚠️'));
+    } catch(e){showToast(message(e),'⚠️');}finally{processingRef.current=false;setProcessing(false);}
   };
 
   // Reset after transaction complete
@@ -435,6 +281,10 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
       <div className="w-full space-y-4 relative">
         
         {/* Toast Notification Banner */}
+        {loading && <p className="p-3">Memuat menu...</p>}
+        {loadError && <p role="alert" className="p-3 text-red-600">{loadError}</p>}
+        {!loading && !loadError && products.length===0 && <p className="p-3">Belum ada menu. Tambahkan menu dan resep melalui backend.</p>}
+        {processing && <p role="status" className="p-3">Menyimpan transaksi...</p>}
         {toastMessage && (
           <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-200 pointer-events-none">
             <div className="bg-slate-900/95 backdrop-blur-md text-white px-4 py-2.5 rounded-2xl shadow-xl border border-slate-700/70 flex items-center gap-2.5 text-xs font-semibold">
@@ -864,8 +714,8 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
                 {paymentMethod === 'qris' && totalAmount > 0 && (
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-center space-y-1 mt-2">
                     <QrCode size={36} className="mx-auto text-[#057A55]" />
-                    <p className="text-xs font-bold text-[#057A55]">Scan QRIS Dinamis Warung</p>
-                    <p className="text-[10px] text-emerald-700">Mendukung GoPay, OVO, ShopeePay, DANA, BCA Mobile</p>
+                    <p className="text-xs font-bold text-[#057A55]">QRIS — Konfirmasi Manual</p>
+                    <p className="text-[10px] text-emerald-700">Gunakan QRIS toko Anda; aplikasi belum mendeteksi pembayaran otomatis.</p>
                   </div>
                 )}
               </div>
@@ -874,7 +724,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
               <button
                 type="button"
                 onClick={handleProcessPayment}
-                disabled={cartList.length === 0 || !isCashSufficient}
+                disabled={processing || cartList.length === 0 || !isCashSufficient}
                 className="w-full py-3.5 px-4 bg-[#057A55] hover:bg-[#046c4e] active:bg-[#03543f] disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-98"
               >
                 <CheckCircle2 size={18} />
@@ -1113,7 +963,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
                   Simulasi Cepat Scan Barcode Produk (Multi-Scan):
                 </span>
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  {PRODUCTS_DATA.slice(0, 4).map((item) => (
+                  {products.slice(0, 4).map((item) => (
                     <button
                       key={item.id}
                       type="button"
@@ -1240,7 +1090,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => alert('Mencetak struk kasir ke printer thermal Bluetooth...')}
+                    onClick={() => window.print()}
                     className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Printer size={15} />
@@ -1249,7 +1099,7 @@ export const Pos: React.FC<PosProps> = ({ onNavigate }) => {
 
                   <button
                     type="button"
-                    onClick={() => alert('Mengirim salinan struk digital ke WhatsApp pelanggan...')}
+                    onClick={() => { const text = [lastTransaction.id, ...lastTransaction.items.map(i=>i.product.name+' x'+i.quantity), 'Total: Rp '+lastTransaction.total, 'Metode: '+lastTransaction.paymentMethod].join('\n'); if(navigator.share) void navigator.share({title:'Struk',text}).catch(()=>{}); else void navigator.clipboard.writeText(text).then(()=>showToast('Struk disalin.')).catch(()=>showToast('Tidak dapat menyalin struk.')); }}
                     className="py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 text-[#057A55] font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     <Share2 size={15} />

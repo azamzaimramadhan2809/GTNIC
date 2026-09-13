@@ -8,6 +8,7 @@ use App\Models\Warung;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class IngredientController extends Controller
@@ -48,9 +49,15 @@ class IngredientController extends Controller
     public function store(Request $request, int $warung): JsonResponse
     {
         $warung = $this->findUserWarung($request, $warung);
-        $ingredient = $warung->ingredients()->create(
-            $this->validateIngredient($request, $warung)
-        );
+        $validated = $this->validateIngredient($request, $warung);
+        $ingredient = DB::transaction(function () use ($warung, $validated): Ingredient {
+            $ingredient = $warung->ingredients()->create($validated);
+            if ((float) $ingredient->stock > 0) {
+                $warung->stockMovements()->create(['ingredient_id' => $ingredient->id, 'type' => 'adjustment', 'quantity' => $ingredient->stock, 'note' => 'Stok awal bahan.']);
+            }
+
+            return $ingredient;
+        });
 
         return response()->json([
             'message' => 'Bahan berhasil dibuat.',
@@ -72,10 +79,17 @@ class IngredientController extends Controller
         int $ingredient
     ): JsonResponse {
         $warungModel = $this->findUserWarung($request, $warung);
-        $ingredient = $warungModel->ingredients()->findOrFail($ingredient);
-        $ingredient->update(
-            $this->validateIngredient($request, $warungModel, true)
-        );
+        $validated = $this->validateIngredient($request, $warungModel, true);
+        $ingredient = DB::transaction(function () use ($warungModel, $ingredient, $validated): Ingredient {
+            $model = $warungModel->ingredients()->lockForUpdate()->findOrFail($ingredient);
+            $difference = isset($validated['stock']) ? round((float) $validated['stock'] - (float) $model->stock, 2) : 0;
+            $model->update($validated);
+            if ($difference != 0) {
+                $warungModel->stockMovements()->create(['ingredient_id' => $model->id, 'type' => 'adjustment', 'quantity' => $difference, 'note' => 'Penyesuaian stok melalui edit bahan.']);
+            }
+
+            return $model;
+        });
 
         return response()->json([
             'message' => 'Bahan berhasil diperbarui.',
@@ -88,7 +102,11 @@ class IngredientController extends Controller
         int $warung,
         int $ingredient
     ): JsonResponse {
-        $this->findIngredient($request, $warung, $ingredient)->delete();
+        $ingredient = $this->findIngredient($request, $warung, $ingredient);
+        if ($ingredient->menuIngredients()->exists() || $ingredient->stockMovements()->where('type', 'sale')->exists()) {
+            return response()->json(['message' => 'Bahan yang dipakai resep atau memiliki riwayat stok tidak dapat dihapus.'], 409);
+        }
+        $ingredient->delete();
 
         return response()->json([
             'message' => 'Bahan berhasil dihapus.',

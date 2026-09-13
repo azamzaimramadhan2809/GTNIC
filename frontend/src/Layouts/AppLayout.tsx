@@ -1,3 +1,4 @@
+import { useData, useSession, type Ingredient } from '../api';
 import React, { useEffect } from 'react';
 import BottomNavigation from '../Components/BottomNavigation';
 import {
@@ -28,7 +29,7 @@ const navItems = [
     name: 'Inventaris Stok',
     href: '/inventory',
     icon: Package,
-    badge: '4 Kritis',
+    badge: '',
   },
   {
     name: 'Kasir POS',
@@ -49,6 +50,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNavigate,
   showBottomNav = true,
 }) => {
+  const {user,warung}=useSession();
+  const {data: stockData} = useData<{low_stock_ingredients: Ingredient[]}>(`/warungs/${warung.id}/dashboard`);
   useEffect(() => {
     if (title) {
       document.title = `${title} - WarungPintar`;
@@ -121,7 +124,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     <span>{item.name}</span>
                   </div>
 
-                  {item.badge ? (
+                  {item.href === '/inventory' && (stockData?.low_stock_ingredients.length ?? 0) > 0 ? (
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                         active
@@ -129,7 +132,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                           : 'bg-amber-100 text-amber-800'
                       }`}
                     >
-                      {item.badge}
+                      {stockData?.low_stock_ingredients.length} Kritis
                     </span>
                   ) : active ? (
                     <ChevronRight size={15} className="text-emerald-200" />
@@ -149,10 +152,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs font-bold text-slate-800 truncate">Juragan Budi</span>
+                  <span className="text-xs font-bold text-slate-800 truncate">{user.name}</span>
                   <span className="w-2 h-2 rounded-full bg-emerald-500" title="Online" />
                 </div>
-                <p className="text-[11px] text-slate-500 truncate">Warung Berkah Jaya</p>
+                <p className="text-[11px] text-slate-500 truncate">{warung.name}</p>
               </div>
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { api, message } from '../../api';
 import React, { useState } from 'react';
 import {
   Store,
@@ -21,35 +22,50 @@ export interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigate }) => {
   const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
-  const [identifier, setIdentifier] = useState('081234567890');
-  const [password, setPassword] = useState('password123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState(() => new URLSearchParams(window.location.search).get('verified') === '1'
+    ? 'Gmail berhasil diverifikasi. Silakan masuk ke akunmu.'
+    : '');
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    // Simulate login API call
-    setTimeout(() => {
-      setIsLoading(false);
-      if (onLoginSuccess) {
-        onLoginSuccess();
-      } else if (onNavigate) {
-        onNavigate('/');
-      }
-    }, 600);
+    if (isLoading) return;
+    setIsLoading(true); setError(''); setNotice('');
+    try {
+      if (authMode === 'otp') throw new Error('OTP WhatsApp belum tersedia. Gunakan email atau nomor HP dan password.');
+      const result = await api<{token: string}>('/login', {method:'POST', body:JSON.stringify({login:identifier,password})});
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem('nexa_token', result.token);
+      if(onLoginSuccess) onLoginSuccess(); else onNavigate?.('/');
+    } catch(e) {setError(message(e));} finally {setIsLoading(false);}
   };
-
-  const handleSendOtp = () => {
-    if (!identifier) return;
+  const handleSendOtp = () => { setOtpSent(false); setError('OTP WhatsApp belum tersedia. Gunakan login password.'); };
+  const handleForgotPassword = async () => {
+    if (!identifier.includes('@')) {
+      setError('Masukkan alamat email akun terlebih dahulu untuk mengatur ulang sandi.');
+      return;
+    }
     setIsLoading(true);
-    setTimeout(() => {
+    setError('');
+    setNotice('');
+    try {
+      const result = await api<{message: string}>('/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({email: identifier}),
+      });
+      setNotice(result.message);
+    } catch (e) {
+      setError(message(e));
+    } finally {
       setIsLoading(false);
-      setOtpSent(true);
-    }, 700);
+    }
   };
 
   return (
@@ -179,6 +195,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigate }) => {
 
           {/* Main Form */}
           <form onSubmit={handleLogin} className="space-y-3">
+            {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+            {notice && <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
             {/* WhatsApp / Email Input */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -208,10 +226,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigate }) => {
                   </label>
                   <a
                     href="#forgot"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      alert('Silakan gunakan opsi Masuk via WhatsApp OTP.');
-                    }}
+                    onClick={(e) => { e.preventDefault(); void handleForgotPassword(); }}
                     className="text-[11px] font-semibold text-[#057A55] hover:underline"
                   >
                     Lupa Sandi?
@@ -290,7 +305,8 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigate }) => {
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-3.5 h-3.5 text-[#057A55] focus:ring-[#057A55] border-slate-300 rounded cursor-pointer"
                 />
                 <span className="text-[11px] text-slate-600 font-medium">
@@ -316,30 +332,12 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess, onNavigate }) => {
             </button>
           </form>
 
-          {/* Quick Demo Access Button */}
-          <div>
-            <button
-              type="button"
-              onClick={() => {
-                if (onLoginSuccess) onLoginSuccess();
-                else if (onNavigate) onNavigate('/');
-              }}
-              className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span>⚡ Cepat Masuk sebagai Demo Juragan</span>
-            </button>
-          </div>
-
           {/* Footer Registration and Security */}
           <div className="pt-2 border-t border-slate-100 text-center space-y-1">
             <p className="text-[11px] text-slate-500">
               Belum punya akun warung?{' '}
               <a
-                href="#register"
-                onClick={(e) => {
-                  e.preventDefault();
-                  alert('Pendaftaran warung baru dibuka. Silakan hubungi tim sales WarungPintar.');
-                }}
+                href="/register"
                 className="font-bold text-[#057A55] hover:underline"
               >
                 Daftar Warung Baru

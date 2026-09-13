@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -19,26 +22,41 @@ class AuthController extends Controller
      */
     public function register(Request $request): JsonResponse
     {
+        $request->merge([
+            'email' => Str::lower(trim((string) $request->input('email'))),
+        ]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'warung_name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'ends_with:@gmail.com', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:20', 'unique:users,phone'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'device_name' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'] ?? null,
-            'password' => $validated['password'],
-        ]);
+        $user = DB::transaction(function () use ($validated): User {
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'password' => $validated['password'],
+                'requires_email_verification' => true,
+            ]);
+
+            $user->warungs()->create([
+                'name' => $validated['warung_name'],
+                'phone' => $validated['phone'] ?? null,
+            ]);
+
+            return $user;
+        });
+
+        $user->sendEmailVerificationNotification();
 
         return response()->json([
-            'message' => 'Registrasi berhasil.',
-            'user' => $user,
-            'token' => $user->createToken($validated['device_name'] ?? 'nexasmart-api')->plainTextToken,
-            'token_type' => 'Bearer',
+            'message' => 'Registrasi berhasil. Periksa Gmail untuk memverifikasi akun.',
+            'email' => $user->email,
+            'requires_verification' => true,
         ], 201);
     }
 
@@ -54,10 +72,13 @@ class AuthController extends Controller
             'device_name' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $identifier = $validated['login'] ?? $validated['email'];
+        $identifier = trim((string) ($validated['login'] ?? $validated['email']));
         $field = filter_var($identifier, FILTER_VALIDATE_EMAIL)
             ? 'email'
             : 'phone';
+        if ($field === 'email') {
+            $identifier = Str::lower($identifier);
+        }
         $user = User::where($field, $identifier)->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
@@ -66,12 +87,43 @@ class AuthController extends Controller
             ], 422);
         }
 
+        if ($user->requires_email_verification && ! $user->hasVerifiedEmail()) {
+            $user->sendEmailVerificationNotification();
+
+            return response()->json([
+                'message' => 'Gmail belum diverifikasi. Kami mengirim ulang tautan verifikasi ke emailmu.',
+            ], 403);
+        }
+
         return response()->json([
             'message' => 'Login berhasil.',
             'user' => $user,
             'token' => $user->createToken($validated['device_name'] ?? 'nexasmart-api')->plainTextToken,
             'token_type' => 'Bearer',
         ]);
+    }
+
+    /**
+     * Verifikasi kepemilikan Gmail melalui tautan bertanda tangan.
+     */
+    public function verifyEmail(Request $request, int $id, string $hash): RedirectResponse
+    {
+        $user = User::findOrFail($id);
+
+        abort_unless(
+            hash_equals($hash, sha1($user->getEmailForVerification())),
+            403,
+            'Tautan verifikasi tidak valid.'
+        );
+
+        if (! $user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            event(new Verified($user));
+        }
+
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
+
+        return redirect()->away($frontendUrl.'/login?verified=1');
     }
 
     /**

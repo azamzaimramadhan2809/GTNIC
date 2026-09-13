@@ -1,3 +1,4 @@
+import { api, allPages, useSession, message, type Ingredient } from '../../api';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
@@ -28,15 +29,15 @@ import {
 // Types
 // ─────────────────────────────────────────────
 export type StockStatus = 'safe' | 'low' | 'critical' | 'out';
-export type ProductCategory = 'Sembako' | 'Minuman' | 'Makanan' | 'Rokok' | 'Snack' | 'Lainnya';
+export type ProductCategory = string;
 
 export interface InventoryItem {
   id: number;
   sku: string;
-  name: string;
+  categoryId: number;
+    name: string;
   category: ProductCategory;
   buyPrice: number;
-  sellPrice: number;
   stock: number;
   unit: string;
   minStock: number;
@@ -47,10 +48,8 @@ export interface InventoryItem {
 export interface NewItemForm {
   name: string;
   category: ProductCategory;
-  sku: string;
   unit: string;
   buyPrice: string;
-  sellPrice: string;
   minStock: string;
   initialStock: string;
 }
@@ -66,7 +65,7 @@ export interface InventoryProps {
 }
 
 // ─────────────────────────────────────────────
-// Initial Dummy Data
+// Inventory helpers and form defaults
 // ─────────────────────────────────────────────
 const deriveStatus = (stock: number, minStock: number): StockStatus => {
   if (stock === 0) return 'out';
@@ -75,40 +74,9 @@ const deriveStatus = (stock: number, minStock: number): StockStatus => {
   return 'safe';
 };
 
-// Helper to build a seed item — status is always computed, never hardcoded
-const makeItem = (
-  id: number, sku: string, name: string, category: ProductCategory,
-  buyPrice: number, sellPrice: number, stock: number, unit: string,
-  minStock: number, lastRestocked: string
-): InventoryItem => ({
-  id, sku, name, category, buyPrice, sellPrice, stock, unit, minStock, lastRestocked,
-  status: deriveStatus(stock, minStock), // ← always computed, never a stale string
-});
-
-const INITIAL_ITEMS: InventoryItem[] = [
-  makeItem(1,  'SKU-001', 'Minyak Goreng Sania 2L',        'Sembako', 32000,  36500,  2,  'pouch',   10, '5 Sep 2026'),
-  makeItem(2,  'SKU-002', 'Telur Ayam Negeri 1kg',          'Sembako', 26000,  29000,  4,  'kg',      15, '6 Sep 2026'),
-  makeItem(3,  'SKU-003', 'Beras Ramos Super 5kg',          'Sembako', 68000,  75000,  1,  'karung',  8,  '4 Sep 2026'),
-  makeItem(4,  'SKU-004', 'Gula Pasir Gulaku 1kg',          'Sembako', 16500,  18500,  4,  'pack',    12, '7 Sep 2026'),
-  makeItem(5,  'SKU-005', 'Kopi Kapal Api Special 165g',    'Minuman', 12000,  14500,  28, 'pcs',     10, '8 Sep 2026'),
-  makeItem(6,  'SKU-006', 'Indomie Goreng Original',        'Makanan', 2900,   3500,   85, 'bungkus', 40, '9 Sep 2026'),
-  makeItem(7,  'SKU-007', 'Susu Kental Manis Frisian Flag', 'Makanan', 11500,  13500,  19, 'kaleng',  10, '7 Sep 2026'),
-  makeItem(8,  'SKU-008', 'Rokok Gudang Garam Surya 16',    'Rokok',   30000,  35000,  24, 'bungkus', 15, '9 Sep 2026'),
-  makeItem(9,  'SKU-009', 'Es Teh Manis Jumbo',             'Minuman', 4500,   6000,   80, 'cup',     30, '10 Sep 2026'),
-  makeItem(10, 'SKU-010', 'Air Mineral Le Minerale 600ml',  'Minuman', 2800,   4000,   96, 'botol',   24, '10 Sep 2026'),
-  makeItem(11, 'SKU-011', 'Chitato Sapi Panggang 68g',      'Snack',   9500,   11500,  18, 'bungkus', 20, '8 Sep 2026'),
-  makeItem(12, 'SKU-012', 'Sampoerna A Mild 16',            'Rokok',   31000,  36000,  30, 'bungkus', 15, '9 Sep 2026'),
-  makeItem(13, 'SKU-013', 'Mie Sedaap Goreng',              'Makanan', 2800,   3500,   0,  'bungkus', 30, '2 Sep 2026'),
-  makeItem(14, 'SKU-014', 'Kopi Nescafe 3in1',              'Minuman', 3200,   4000,   45, 'sachet',  20, '11 Sep 2026'),
-  makeItem(15, 'SKU-015', 'Sabun Lifebuoy 75g',             'Lainnya', 4500,   6000,   12, 'pcs',     10, '10 Sep 2026'),
-];
-
-const CATEGORIES: ProductCategory[] = ['Sembako', 'Minuman', 'Makanan', 'Rokok', 'Snack', 'Lainnya'];
-const CATEGORY_FILTERS = ['Semua', ...CATEGORIES];
-
 const EMPTY_NEW_ITEM: NewItemForm = {
-  name: '', category: 'Sembako', sku: '', unit: 'pcs',
-  buyPrice: '', sellPrice: '', minStock: '', initialStock: '',
+  name: '', category: 'Bahan Pokok', unit: 'pcs',
+  buyPrice: '', minStock: '', initialStock: '',
 };
 
 const EMPTY_RESTOCK: RestockForm = {
@@ -205,13 +173,29 @@ const inputCls = 'w-full px-3.5 py-2.5 text-sm bg-white border border-slate-200 
 // Main Component
 // ─────────────────────────────────────────────
 export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
-  const [items, setItems] = useState<InventoryItem[]>(INITIAL_ITEMS);
+  const [items, setItems] = useState<InventoryItem[]>([]);
 
+  const {warung} = useSession();
+  const base = '/warungs/' + warung.id;
+  const [categories, setCategories] = useState<{id:number; name:string}[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const CATEGORIES = Array.from(new Set(['Bahan Pokok', 'Bumbu', 'Protein', 'Sayuran', 'Lainnya', ...categories.map(c=>c.name)]));
+  const CATEGORY_FILTERS = ['Semua', ...CATEGORIES];
+  const mapIngredient = (i: Ingredient): InventoryItem => ({id:i.id,sku:'BHN-'+i.id,categoryId:i.ingredient_category_id,name:i.name,category:i.category.name,buyPrice:Number(i.purchase_price),stock:Number(i.stock),minStock:Number(i.minimum_stock),unit:i.unit,status:deriveStatus(Number(i.stock),Number(i.minimum_stock))});
+  useEffect(()=>{let active=true;Promise.all([allPages<Ingredient>(base+'/ingredients','ingredients'),allPages<{id:number;name:string}>(base+'/ingredient-categories','categories')]).then(([ingredients,result])=>{if(active){setItems(ingredients.map(mapIngredient));setCategories(result);setLoading(false);}}).catch(e=>{if(active){setLoadError(message(e));setLoading(false);}});return()=>{active=false;};},[base]);
+  const categoryId = async (name:string) => {
+    const found=categories.find(c=>c.name===name);if(found)return found.id;
+    const result=await api<{category:{id:number;name:string}}>(base+'/ingredient-categories',{method:'POST',body:JSON.stringify({name})});
+    setCategories(prev=>[...prev,result.category]);return result.category.id;
+  };
+  const perform = async (action:()=>Promise<void>) => {if(busy)return;setBusy(true);try{await action();}catch(e){showToast(message(e),'error');}finally{setBusy(false);}};
   // Filters
   const [search, setSearch]             = useState('');
   const [categoryFilter, setCategoryFilter] = useState('Semua');
   const [statusFilter, setStatusFilter] = useState('Semua Status');
-  const [sortField, setSortField]       = useState<'name' | 'stock' | 'sellPrice'>('name');
+  const [sortField, setSortField]       = useState<'name' | 'stock' | 'buyPrice'>('name');
   const [sortAsc, setSortAsc]           = useState(true);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const statusDropdownRef = useRef<HTMLDivElement>(null);
@@ -288,8 +272,8 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
     if (statusFilter === 'Habis')        list = list.filter(i => deriveStatus(i.stock, i.minStock) === 'out');
 
     list.sort((a, b) => {
-      let av = sortField === 'name' ? a.name : sortField === 'stock' ? a.stock : a.sellPrice;
-      let bv = sortField === 'name' ? b.name : sortField === 'stock' ? b.stock : b.sellPrice;
+      const av = sortField === 'name' ? a.name : sortField === 'stock' ? a.stock : a.buyPrice;
+      const bv = sortField === 'name' ? b.name : sortField === 'stock' ? b.stock : b.buyPrice;
       if (av < bv) return sortAsc ? -1 : 1;
       if (av > bv) return sortAsc ? 1 : -1;
       return 0;
@@ -304,58 +288,19 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
   };
 
   // ── Handlers ──
-  const handleAddItem = () => {
-    const { name, category, sku, unit, buyPrice, sellPrice, minStock, initialStock } = newItemForm;
-    if (!name.trim() || !buyPrice || !sellPrice || !minStock) {
-      showToast('Harap lengkapi semua kolom wajib!', 'error');
-      return;
-    }
-
-    const stock = parseInt(initialStock) || 0;
-    const min   = parseInt(minStock)    || 1;
-    const newItem: InventoryItem = {
-      id:   Date.now(),
-      sku:  sku.trim() || `SKU-${String(items.length + 1).padStart(3, '0')}`,
-      name: name.trim(),
-      category,
-      unit,
-      buyPrice:  parseInt(buyPrice.replace(/\D/g, '')) || 0,
-      sellPrice: parseInt(sellPrice.replace(/\D/g, '')) || 0,
-      stock,
-      minStock:  min,
-      status:    deriveStatus(stock, min),
-      lastRestocked: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-    };
-
-    setItems(prev => [newItem, ...prev]);
-    setNewItemForm(EMPTY_NEW_ITEM);
-    setAddModalOpen(false);
-    showToast(`✅ "${name}" berhasil ditambahkan ke inventaris!`);
-  };
-
-  const handleQuickRestock = () => {
-    if (!restockTargetId) return;
-    const qty = parseInt(restockForm.quantity);
-    if (!qty || qty <= 0) { showToast('Masukkan jumlah restok yang valid!', 'error'); return; }
-
-    setItems(prev => prev.map(item => {
-      if (item.id !== restockTargetId) return item;
-      const newStock = item.stock + qty;
-      return {
-        ...item,
-        stock: newStock,
-        status: deriveStatus(newStock, item.minStock),
-        lastRestocked: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
-      };
-    }));
-
-    const itemName = items.find(i => i.id === restockTargetId)?.name;
-    setRestockForm(EMPTY_RESTOCK);
-    setRestockModalOpen(false);
-    setRestockTargetId(null);
-    showToast(`📦 Stok "${itemName}" berhasil ditambah +${qty}!`);
-  };
-
+  const handleAddItem = () => void perform(async () => {
+    const f=newItemForm;
+    if(!f.name.trim() || !f.buyPrice || f.minStock==='') throw new Error('Lengkapi nama, harga beli per satuan, dan batas stok.');
+    const result=await api<{ingredient:Ingredient}>(base+'/ingredients',{method:'POST',body:JSON.stringify({name:f.name.trim(),ingredient_category_id:await categoryId(f.category),unit:f.unit,purchase_price:Number(f.buyPrice),minimum_stock:Number(f.minStock),stock:Number(f.initialStock||0)})});
+    setItems(prev=>[mapIngredient(result.ingredient),...prev]);setNewItemForm(EMPTY_NEW_ITEM);setAddModalOpen(false);showToast('Bahan berhasil disimpan.');
+  });
+  const handleQuickRestock = () => void perform(async () => {
+    if(!restockTargetId)return;
+    const quantity=Number(restockForm.quantity);if(!Number.isFinite(quantity)||quantity<=0)throw new Error('Jumlah restock harus positif.');
+    const result=await api<{stock_movement:{ingredient:{stock:string}}}>(base+'/stock-movements',{method:'POST',body:JSON.stringify({ingredient_id:restockTargetId,type:'purchase',quantity,note:restockForm.supplierNote,occurred_at:restockForm.date})});
+    setItems(prev=>prev.map(i=>i.id===restockTargetId?{...i,stock:Number(result.stock_movement.ingredient.stock),status:deriveStatus(Number(result.stock_movement.ingredient.stock),i.minStock),lastRestocked:restockForm.date}:i));
+    setRestockModalOpen(false);setRestockTargetId(null);setRestockForm(EMPTY_RESTOCK);showToast('Restock berhasil dicatat.');
+  });
   const openRestock = (id: number) => {
     setRestockTargetId(id);
     setRestockForm(EMPTY_RESTOCK);
@@ -367,29 +312,20 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
     setEditModalOpen(true);
   };
 
-  const handleSaveEdit = () => {
-    if (!editItem) return;
-    if (!editItem.name.trim()) { showToast('Nama barang tidak boleh kosong!', 'error'); return; }
-    setItems(prev => prev.map(i =>
-      i.id === editItem.id
-        ? { ...editItem, status: deriveStatus(editItem.stock, editItem.minStock) }
-        : i
-    ));
-    setEditModalOpen(false);
-    showToast(`✏️ Data "${editItem.name}" berhasil diperbarui!`);
-  };
-
-  const handleDelete = (id: number) => {
-    const name = items.find(i => i.id === id)?.name;
-    setItems(prev => prev.filter(i => i.id !== id));
-    setDeleteConfirmId(null);
-    showToast(`🗑️ "${name}" dihapus dari inventaris.`, 'info');
-  };
+  const handleSaveEdit = () => void perform(async () => {
+    if(!editItem)return;
+    const result=await api<{ingredient:Ingredient}>(base+'/ingredients/'+editItem.id,{method:'PATCH',body:JSON.stringify({name:editItem.name,ingredient_category_id:await categoryId(editItem.category),purchase_price:editItem.buyPrice,unit:editItem.unit,minimum_stock:editItem.minStock,stock:editItem.stock})});
+    setItems(prev=>prev.map(i=>i.id===editItem.id?mapIngredient(result.ingredient):i));setEditModalOpen(false);showToast('Bahan berhasil diperbarui.');
+  });
+  const handleDelete = (id:number) => void perform(async () => {await api(base+'/ingredients/'+id,{method:'DELETE'});setItems(prev=>prev.filter(i=>i.id!==id));setDeleteConfirmId(null);showToast('Bahan berhasil dihapus.');});
 
   const restockTarget = items.find(i => i.id === restockTargetId);
 
   return (
     <AppLayout title="Manajemen Stok" currentPath="/inventory" onNavigate={onNavigate}>
+      {loading && <p className="p-4">Memuat bahan...</p>}
+      {loadError && <p role="alert" className="p-4 text-red-600">{loadError}</p>}
+      {busy && <div className="fixed inset-0 z-[300] bg-white/60 grid place-items-center" role="status">Menyimpan...</div>}
 
       {/* ── Toast ── */}
       {toast && (
@@ -410,7 +346,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             <div className="w-12 h-12 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <Trash2 size={22} className="text-rose-600" />
             </div>
-            <h3 className="text-base font-bold text-slate-900 text-center">Hapus Barang?</h3>
+            <h3 className="text-base font-bold text-slate-900 text-center">Hapus Bahan?</h3>
             <p className="text-xs text-slate-500 text-center mt-1 mb-5">
               "<span className="font-semibold text-slate-700">{items.find(i => i.id === deleteConfirmId)?.name}</span>" akan dihapus permanen dari inventaris.
             </p>
@@ -441,7 +377,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
               <h1 className="text-lg md:text-2xl font-bold text-white leading-tight">Manajemen Inventaris</h1>
             </div>
             <p className="text-xs md:text-sm text-emerald-100/90 mt-0.5">
-              Kelola stok barang, pantau ketersediaan, dan atur harga jual toko
+              Kelola stok bahan, pantau ketersediaan, dan biaya bahan per satuan
             </p>
           </div>
 
@@ -462,7 +398,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
               className="flex items-center gap-1.5 px-3.5 py-2 bg-white text-[#057A55] hover:bg-emerald-50 rounded-xl text-xs md:text-sm font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
             >
               <Plus size={16} />
-              <span>Tambah Barang Baru</span>
+              <span>Tambah Bahan Baru</span>
             </button>
           </div>
         </div>
@@ -473,7 +409,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
       ════════════════════════════════════════ */}
       <div className="px-4 md:px-0 -mt-3 md:mt-4 relative z-20">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-          {/* Total Barang */}
+          {/* Total Bahan */}
           <div className="bg-white rounded-2xl p-3.5 md:p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[11px] md:text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Jenis</span>
@@ -482,7 +418,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
               </div>
             </div>
             <div className="text-2xl md:text-3xl font-extrabold text-slate-900">{stats.total}</div>
-            <div className="text-[11px] text-slate-400 font-medium mt-0.5">jenis barang</div>
+            <div className="text-[11px] text-slate-400 font-medium mt-0.5">jenis bahan</div>
           </div>
 
           {/* Stok Aman */}
@@ -536,7 +472,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Cari nama barang atau kode SKU..."
+              placeholder="Cari nama bahan atau kode bahan..."
               className="bg-transparent border-none outline-none text-sm text-slate-800 placeholder-slate-400 w-full"
             />
             {search && (
@@ -604,7 +540,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
         {/* Results count */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-slate-500 font-medium">
-            Menampilkan <span className="font-bold text-slate-700">{displayItems.length}</span> dari {items.length} barang
+            Menampilkan <span className="font-bold text-slate-700">{displayItems.length}</span> dari {items.length} bahan
           </span>
           {(search || categoryFilter !== 'Semua' || statusFilter !== 'Semua Status') && (
             <button
@@ -624,13 +560,13 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {/* Table Header */}
           <div className="grid grid-cols-[1fr_2.5fr_1fr_1fr_1.5fr_1.2fr] gap-4 px-5 py-3 bg-slate-50 border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-            <span>Kode SKU</span>
+            <span>Kode Bahan</span>
             <button onClick={() => toggleSort('name')} className="flex items-center gap-1 cursor-pointer hover:text-slate-800 transition-colors text-left">
-              Nama Barang <ArrowUpDown size={11} className="opacity-60" />
+              Nama Bahan <ArrowUpDown size={11} className="opacity-60" />
             </button>
             <span>Harga Beli</span>
-            <button onClick={() => toggleSort('sellPrice')} className="flex items-center gap-1 cursor-pointer hover:text-slate-800 transition-colors">
-              Harga Jual <ArrowUpDown size={11} className="opacity-60" />
+            <button onClick={() => toggleSort('buyPrice')} className="flex items-center gap-1 cursor-pointer hover:text-slate-800 transition-colors">
+              Nilai Stok <ArrowUpDown size={11} className="opacity-60" />
             </button>
             <button onClick={() => toggleSort('stock')} className="flex items-center gap-1 cursor-pointer hover:text-slate-800 transition-colors">
               Stok & Status <ArrowUpDown size={11} className="opacity-60" />
@@ -642,8 +578,8 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           {displayItems.length === 0 ? (
             <div className="py-16 text-center">
               <Package size={40} className="mx-auto text-slate-300 mb-3" />
-              <p className="text-sm font-bold text-slate-600">Tidak ada barang ditemukan</p>
-              <p className="text-xs text-slate-400 mt-1">Coba ubah filter pencarian atau tambah barang baru</p>
+              <p className="text-sm font-bold text-slate-600">Tidak ada bahan ditemukan</p>
+              <p className="text-xs text-slate-400 mt-1">Coba ubah filter pencarian atau tambah bahan baru</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-50">
@@ -678,7 +614,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
                     <div className="text-xs font-semibold text-slate-600">{formatRp(item.buyPrice)}</div>
 
                     {/* Sell Price */}
-                    <div className="text-xs font-bold text-[#057A55]">{formatRp(item.sellPrice)}</div>
+                    <div className="text-xs font-bold text-[#057A55]">{formatRp(item.buyPrice * item.stock)}</div>
 
                     {/* Stock + Status */}
                     <div>
@@ -694,7 +630,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
                         type="button"
                         onClick={() => openEdit(item)}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-blue-50 hover:text-blue-600 text-slate-500 transition-colors cursor-pointer"
-                        title="Edit barang"
+                        title="Edit bahan"
                       >
                         <Edit3 size={14} />
                       </button>
@@ -710,7 +646,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
                         type="button"
                         onClick={() => setDeleteConfirmId(item.id)}
                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-500 transition-colors cursor-pointer"
-                        title="Hapus barang"
+                        title="Hapus bahan"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -730,8 +666,8 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
         {displayItems.length === 0 ? (
           <div className="bg-white rounded-2xl py-14 text-center border border-slate-100 shadow-xs">
             <Package size={36} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm font-bold text-slate-600">Tidak ada barang</p>
-            <p className="text-xs text-slate-400 mt-1">Ubah filter atau tambah barang baru</p>
+            <p className="text-sm font-bold text-slate-600">Tidak ada bahan</p>
+            <p className="text-xs text-slate-400 mt-1">Ubah filter atau tambah bahan baru</p>
           </div>
         ) : (
           displayItems.map(item => {
@@ -770,8 +706,8 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
                     <span className="text-xs font-bold text-slate-700">{formatRp(item.buyPrice)}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-medium block">Harga Jual</span>
-                    <span className="text-xs font-bold text-[#057A55]">{formatRp(item.sellPrice)}</span>
+                    <span className="text-[10px] text-slate-400 font-medium block">Nilai Stok</span>
+                    <span className="text-xs font-bold text-[#057A55]">{formatRp(item.buyPrice * item.stock)}</span>
                   </div>
                 </div>
 
@@ -816,10 +752,10 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
       <Modal
         open={addModalOpen}
         onClose={() => setAddModalOpen(false)}
-        title="Tambah Barang Baru"
+        title="Tambah Bahan Baru"
         subtitle="Isi detail produk untuk menambahkan ke inventaris toko"
       >
-        <Field label="Nama Barang" required>
+        <Field label="Nama Bahan" required>
           <input
             type="text"
             value={newItemForm.name}
@@ -852,33 +788,13 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           </Field>
         </div>
 
-        <Field label="Kode SKU" hint="Kosongkan untuk generate otomatis">
-          <input
-            type="text"
-            value={newItemForm.sku}
-            onChange={e => setNewItemForm(p => ({ ...p, sku: e.target.value.toUpperCase() }))}
-            placeholder="Contoh: SKU-016"
-            className={inputCls}
-          />
-        </Field>
-
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Harga Beli (Rp)" required>
+          <Field label="Harga Beli per Satuan (Rp)" required>
             <input
-              type="number"
+              type="number" step="0.01"
               value={newItemForm.buyPrice}
               onChange={e => setNewItemForm(p => ({ ...p, buyPrice: e.target.value }))}
               placeholder="32000"
-              min={0}
-              className={inputCls}
-            />
-          </Field>
-          <Field label="Harga Jual (Rp)" required>
-            <input
-              type="number"
-              value={newItemForm.sellPrice}
-              onChange={e => setNewItemForm(p => ({ ...p, sellPrice: e.target.value }))}
-              placeholder="36500"
               min={0}
               className={inputCls}
             />
@@ -888,17 +804,17 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
         <div className="grid grid-cols-2 gap-3">
           <Field label="Stok Minimal" required hint="Batas peringatan restok">
             <input
-              type="number"
+              type="number" step="0.01"
               value={newItemForm.minStock}
               onChange={e => setNewItemForm(p => ({ ...p, minStock: e.target.value }))}
               placeholder="10"
-              min={1}
+              min={0}
               className={inputCls}
             />
           </Field>
           <Field label="Stok Awal" hint="Jumlah stok saat ini">
             <input
-              type="number"
+              type="number" step="0.01"
               value={newItemForm.initialStock}
               onChange={e => setNewItemForm(p => ({ ...p, initialStock: e.target.value }))}
               placeholder="0"
@@ -907,22 +823,6 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             />
           </Field>
         </div>
-
-        {/* Margin preview */}
-        {newItemForm.buyPrice && newItemForm.sellPrice && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between text-xs">
-            <span className="font-semibold text-emerald-800">Estimasi Margin Laba</span>
-            <span className="font-extrabold text-emerald-700">
-              {(() => {
-                const buy  = parseInt(newItemForm.buyPrice)  || 0;
-                const sell = parseInt(newItemForm.sellPrice) || 0;
-                if (!buy || !sell) return '-';
-                const margin = ((sell - buy) / sell * 100).toFixed(1);
-                return `${formatRp(sell - buy)} (${margin}%)`;
-              })()}
-            </span>
-          </div>
-        )}
 
         {/* Submit */}
         <div className="flex gap-3 pt-1">
@@ -939,7 +839,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             className="flex-1 py-3 rounded-xl bg-[#057A55] text-white text-sm font-bold hover:bg-[#046c4e] transition-colors shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
           >
             <Save size={16} />
-            Simpan Barang
+            Simpan Bahan
           </button>
         </div>
       </Modal>
@@ -951,17 +851,17 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
         open={restockModalOpen}
         onClose={() => { setRestockModalOpen(false); setRestockTargetId(null); }}
         title={restockTarget ? `Restok: ${restockTarget.name}` : 'Restok Cepat'}
-        subtitle="Masukkan jumlah barang masuk dari supplier"
+        subtitle="Masukkan jumlah bahan masuk dari supplier"
       >
         {/* If no specific target (bulk restock entry), show item selector */}
         {!restockTargetId && (
-          <Field label="Pilih Barang" required>
+          <Field label="Pilih Bahan" required>
             <select
               className={inputCls}
               onChange={e => setRestockTargetId(Number(e.target.value))}
               defaultValue=""
             >
-              <option value="" disabled>-- Pilih barang yang akan direstok --</option>
+              <option value="" disabled>-- Pilih bahan yang akan direstok --</option>
               {items
                 .filter(i => i.status !== 'safe' || true) // show all
                 .sort((a, b) => {
@@ -1011,14 +911,14 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           </div>
         )}
 
-        <Field label="Jumlah Barang Masuk" required>
+        <Field label="Jumlah Bahan Masuk" required>
           <div className="relative">
             <input
-              type="number"
+              type="number" step="0.01"
               value={restockForm.quantity}
               onChange={e => setRestockForm(p => ({ ...p, quantity: e.target.value }))}
               placeholder="Contoh: 50"
-              min={1}
+              min={0}
               className={`${inputCls} pr-16`}
             />
             {restockTarget && (
@@ -1057,7 +957,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
           <textarea
             value={restockForm.supplierNote}
             onChange={e => setRestockForm(p => ({ ...p, supplierNote: e.target.value }))}
-            placeholder="Contoh: Barang dari CV Jaya Mandiri, Batch #A12..."
+            placeholder="Contoh: Bahan dari CV Jaya Mandiri, Batch #A12..."
             rows={2}
             className={`${inputCls} resize-none`}
           />
@@ -1099,12 +999,12 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
       <Modal
         open={editModalOpen}
         onClose={() => setEditModalOpen(false)}
-        title="Edit Data Barang"
+        title="Edit Data Bahan"
         subtitle="Perbarui informasi produk"
       >
         {editItem && (
           <>
-            <Field label="Nama Barang" required>
+            <Field label="Nama Bahan" required>
               <input
                 type="text"
                 value={editItem.name}
@@ -1137,20 +1037,11 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Harga Beli (Rp)" required>
+              <Field label="Harga Beli per Satuan (Rp)" required>
                 <input
-                  type="number"
+                  type="number" step="0.01"
                   value={editItem.buyPrice}
                   onChange={e => setEditItem(p => p ? { ...p, buyPrice: Number(e.target.value) } : p)}
-                  min={0}
-                  className={inputCls}
-                />
-              </Field>
-              <Field label="Harga Jual (Rp)" required>
-                <input
-                  type="number"
-                  value={editItem.sellPrice}
-                  onChange={e => setEditItem(p => p ? { ...p, sellPrice: Number(e.target.value) } : p)}
                   min={0}
                   className={inputCls}
                 />
@@ -1160,7 +1051,7 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
             <div className="grid grid-cols-2 gap-3">
               <Field label="Stok Saat Ini">
                 <input
-                  type="number"
+                  type="number" step="0.01"
                   value={editItem.stock}
                   onChange={e => setEditItem(p => p ? { ...p, stock: Number(e.target.value) } : p)}
                   min={0}
@@ -1169,25 +1060,14 @@ export const Inventory: React.FC<InventoryProps> = ({ onNavigate }) => {
               </Field>
               <Field label="Stok Minimum">
                 <input
-                  type="number"
+                  type="number" step="0.01"
                   value={editItem.minStock}
                   onChange={e => setEditItem(p => p ? { ...p, minStock: Number(e.target.value) } : p)}
-                  min={1}
+                  min={0}
                   className={inputCls}
                 />
               </Field>
             </div>
-
-            {/* Margin preview */}
-            {editItem.buyPrice > 0 && editItem.sellPrice > 0 && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center justify-between text-xs">
-                <span className="font-semibold text-emerald-800">Margin Laba</span>
-                <span className="font-extrabold text-emerald-700">
-                  {formatRp(editItem.sellPrice - editItem.buyPrice)} (
-                  {((editItem.sellPrice - editItem.buyPrice) / editItem.sellPrice * 100).toFixed(1)}%)
-                </span>
-              </div>
-            )}
 
             <div className="flex gap-3 pt-1">
               <button

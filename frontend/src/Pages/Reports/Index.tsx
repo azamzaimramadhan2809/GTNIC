@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useSession, useData, dateRange, type Report } from '../../api';
+import React, { useState, useRef, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import {
-  TrendingUp,
-  TrendingDown,
   CreditCard,
   Receipt,
   BarChart2,
@@ -15,8 +14,6 @@ import {
   QrCode,
   Building2,
   Eye,
-  ArrowUpRight,
-  ArrowDownRight,
   Sparkles,
   ShoppingBag,
   X,
@@ -36,10 +33,6 @@ interface MetricData {
   profitMargin: number;
   transaksi: number;
   avgOrder: number;
-  omsetChange: number;   // % vs previous period
-  profitChange: number;
-  transaksiChange: number;
-  avgOrderChange: number;
 }
 
 interface DailyPoint {
@@ -78,135 +71,7 @@ interface Transaction {
 }
 
 // ─────────────────────────────────────────────
-// Dummy Data per Period
-// ─────────────────────────────────────────────
-const METRICS: Record<Period, MetricData> = {
-  hari_ini: {
-    omset: 1_450_000, profit: 420_000, profitMargin: 28.9,
-    transaksi: 48, avgOrder: 30_208,
-    omsetChange: +12.5, profitChange: +8.3, transaksiChange: +6.7, avgOrderChange: +5.4,
-  },
-  '7_hari': {
-    omset: 10_180_000, profit: 2_850_000, profitMargin: 28.0,
-    transaksi: 312, avgOrder: 32_628,
-    omsetChange: +18.2, profitChange: +14.6, transaksiChange: +22.1, avgOrderChange: -3.2,
-  },
-  bulan_ini: {
-    omset: 42_750_000, profit: 11_960_000, profitMargin: 27.9,
-    transaksi: 1_248, avgOrder: 34_255,
-    omsetChange: +9.4, profitChange: +7.1, transaksiChange: +15.3, avgOrderChange: -5.1,
-  },
-  kustom: {
-    omset: 28_320_000, profit: 7_840_000, profitMargin: 27.7,
-    transaksi: 864, avgOrder: 32_778,
-    omsetChange: +5.2, profitChange: +3.8, transaksiChange: +8.0, avgOrderChange: -2.6,
-  },
-};
-
-const CHART_DATA: Record<Period, DailyPoint[]> = {
-  hari_ini: [
-    { label: '07:00', revenue: 85_000,  profit: 24_000, transactions: 3  },
-    { label: '08:00', revenue: 145_000, profit: 42_000, transactions: 6  },
-    { label: '09:00', revenue: 220_000, profit: 64_000, transactions: 8  },
-    { label: '10:00', revenue: 175_000, profit: 51_000, transactions: 6  },
-    { label: '11:00', revenue: 310_000, profit: 89_000, transactions: 11 },
-    { label: '12:00', revenue: 265_000, profit: 77_000, transactions: 9  },
-    { label: '13:00', revenue: 130_000, profit: 38_000, transactions: 5  },
-  ],
-  '7_hari': [
-    { label: 'Sen',  revenue: 1_200_000, profit: 336_000, transactions: 38 },
-    { label: 'Sel',  revenue: 950_000,   profit: 266_000, transactions: 30 },
-    { label: 'Rab',  revenue: 1_450_000, profit: 406_000, transactions: 46 },
-    { label: 'Kam',  revenue: 1_100_000, profit: 308_000, transactions: 35 },
-    { label: 'Jum',  revenue: 1_680_000, profit: 470_400, transactions: 53 },
-    { label: 'Sab',  revenue: 2_050_000, profit: 574_000, transactions: 65 },
-    { label: 'Min',  revenue: 1_750_000, profit: 490_000, transactions: 55 },
-  ],
-  bulan_ini: [
-    { label: 'Mg 1', revenue: 9_800_000,  profit: 2_744_000, transactions: 296 },
-    { label: 'Mg 2', revenue: 11_200_000, profit: 3_136_000, transactions: 338 },
-    { label: 'Mg 3', revenue: 10_560_000, profit: 2_956_800, transactions: 318 },
-    { label: 'Mg 4', revenue: 11_190_000, profit: 3_133_200, transactions: 296 },
-  ],
-  kustom: [
-    { label: '1–5',  revenue: 6_200_000, profit: 1_736_000, transactions: 192 },
-    { label: '6–10', revenue: 7_100_000, profit: 1_988_000, transactions: 220 },
-    { label: '11–15',revenue: 5_900_000, profit: 1_652_000, transactions: 182 },
-    { label: '16–20',revenue: 9_120_000, profit: 2_553_600, transactions: 270 },
-  ],
-};
-
-const TOP_PRODUCTS: Record<Period, TopProduct[]> = {
-  hari_ini: [
-    { rank: 1, name: 'Kopi Susu Gula Aren',          category: 'Minuman',  sold: 18, revenue: 270_000,   percentage: 88, icon: '☕' },
-    { rank: 2, name: 'Indomie Goreng + Telur',        category: 'Makanan',  sold: 14, revenue: 210_000,   percentage: 64, icon: '🍜' },
-    { rank: 3, name: 'Es Teh Manis Jumbo',            category: 'Minuman',  sold: 22, revenue: 132_000,   percentage: 52, icon: '🧊' },
-    { rank: 4, name: 'Rokok Gudang Garam Surya 16',   category: 'Rokok',    sold: 8,  revenue: 280_000,   percentage: 40, icon: '🚬' },
-    { rank: 5, name: 'Air Mineral Le Minerale 600ml', category: 'Minuman',  sold: 30, revenue: 120_000,   percentage: 36, icon: '💧' },
-  ],
-  '7_hari': [
-    { rank: 1, name: 'Kopi Susu Gula Aren',          category: 'Minuman',  sold: 142, revenue: 2_130_000, percentage: 88, icon: '☕' },
-    { rank: 2, name: 'Indomie Goreng + Telur',        category: 'Makanan',  sold: 98,  revenue: 1_470_000, percentage: 64, icon: '🍜' },
-    { rank: 3, name: 'Es Teh Manis Jumbo',            category: 'Minuman',  sold: 183, revenue: 1_098_000, percentage: 52, icon: '🧊' },
-    { rank: 4, name: 'Rokok Gudang Garam Surya 16',   category: 'Rokok',    sold: 56,  revenue: 1_960_000, percentage: 40, icon: '🚬' },
-    { rank: 5, name: 'Air Mineral Le Minerale 600ml', category: 'Minuman',  sold: 240, revenue:   960_000, percentage: 36, icon: '💧' },
-  ],
-  bulan_ini: [
-    { rank: 1, name: 'Kopi Susu Gula Aren',          category: 'Minuman',  sold: 582, revenue: 8_730_000, percentage: 88, icon: '☕' },
-    { rank: 2, name: 'Indomie Goreng + Telur',        category: 'Makanan',  sold: 418, revenue: 6_270_000, percentage: 72, icon: '🍜' },
-    { rank: 3, name: 'Rokok Sampoerna A Mild 16',     category: 'Rokok',    sold: 312, revenue: 11_232_000,percentage: 60, icon: '🚬' },
-    { rank: 4, name: 'Es Teh Manis Jumbo',            category: 'Minuman',  sold: 726, revenue: 4_356_000, percentage: 48, icon: '🧊' },
-    { rank: 5, name: 'Minyak Goreng Sania 2L',        category: 'Sembako',  sold: 88,  revenue: 3_212_000, percentage: 38, icon: '🌻' },
-  ],
-  kustom: [
-    { rank: 1, name: 'Kopi Susu Gula Aren',          category: 'Minuman',  sold: 384, revenue: 5_760_000, percentage: 88, icon: '☕' },
-    { rank: 2, name: 'Rokok Sampoerna A Mild 16',     category: 'Rokok',    sold: 206, revenue: 7_416_000, percentage: 70, icon: '🚬' },
-    { rank: 3, name: 'Indomie Goreng + Telur',        category: 'Makanan',  sold: 276, revenue: 4_140_000, percentage: 60, icon: '🍜' },
-    { rank: 4, name: 'Es Teh Manis Jumbo',            category: 'Minuman',  sold: 490, revenue: 2_940_000, percentage: 42, icon: '🧊' },
-    { rank: 5, name: 'Air Mineral Le Minerale 600ml', category: 'Minuman',  sold: 360, revenue: 1_440_000, percentage: 32, icon: '💧' },
-  ],
-};
-
-const CATEGORIES: Record<Period, CategoryShare[]> = {
-  hari_ini: [
-    { name: 'Minuman & Kopi', percentage: 42, revenue:  609_000, color: '#057A55' },
-    { name: 'Makanan Siap Saji', percentage: 28, revenue: 406_000, color: '#0891b2' },
-    { name: 'Rokok & Tembakau', percentage: 18, revenue: 261_000, color: '#d97706' },
-    { name: 'Sembako & Eceran', percentage: 12, revenue: 174_000, color: '#7c3aed' },
-  ],
-  '7_hari': [
-    { name: 'Minuman & Kopi', percentage: 45, revenue: 4_581_000, color: '#057A55' },
-    { name: 'Makanan Siap Saji', percentage: 25, revenue: 2_545_000, color: '#0891b2' },
-    { name: 'Rokok & Tembakau', percentage: 20, revenue: 2_036_000, color: '#d97706' },
-    { name: 'Sembako & Eceran', percentage: 10, revenue: 1_018_000, color: '#7c3aed' },
-  ],
-  bulan_ini: [
-    { name: 'Minuman & Kopi', percentage: 38, revenue: 16_245_000, color: '#057A55' },
-    { name: 'Rokok & Tembakau', percentage: 27, revenue: 11_542_500, color: '#d97706' },
-    { name: 'Makanan Siap Saji', percentage: 22, revenue:  9_405_000, color: '#0891b2' },
-    { name: 'Sembako & Eceran', percentage: 13, revenue:  5_557_500, color: '#7c3aed' },
-  ],
-  kustom: [
-    { name: 'Rokok & Tembakau', percentage: 32, revenue: 9_062_400, color: '#d97706' },
-    { name: 'Minuman & Kopi', percentage: 36, revenue: 10_195_200, color: '#057A55' },
-    { name: 'Makanan Siap Saji', percentage: 20, revenue: 5_664_000, color: '#0891b2' },
-    { name: 'Sembako & Eceran', percentage: 12, revenue: 3_398_400, color: '#7c3aed' },
-  ],
-};
-
-const TRANSACTIONS: Transaction[] = [
-  { id: 'TRX-20260912-9831', time: '10:42', date: '12 Sep 2026', items: 'Kopi Susu (2), Indomie Goreng (1)', itemCount: 3, payment: 'QRIS',    total: 45_000,  status: 'selesai' },
-  { id: 'TRX-20260912-9830', time: '10:15', date: '12 Sep 2026', items: 'Rokok Surya 16 (1), Es Teh (2)',    itemCount: 3, payment: 'Tunai',   total: 47_000,  status: 'selesai' },
-  { id: 'TRX-20260912-9829', time: '09:50', date: '12 Sep 2026', items: 'Minyak Goreng 2L (1), Telur 1kg',  itemCount: 2, payment: 'Transfer', total: 65_500,  status: 'selesai' },
-  { id: 'TRX-20260912-9828', time: '09:22', date: '12 Sep 2026', items: 'Kopi Susu (1), Roti Bakar (1)',    itemCount: 2, payment: 'QRIS',    total: 33_000,  status: 'selesai' },
-  { id: 'TRX-20260912-9827', time: '08:55', date: '12 Sep 2026', items: 'Air Mineral (6), Chitato (2)',      itemCount: 8, payment: 'Tunai',   total: 47_000,  status: 'selesai' },
-  { id: 'TRX-20260911-9810', time: '18:30', date: '11 Sep 2026', items: 'Sampoerna A Mild (2), Kopi (1)',   itemCount: 3, payment: 'Tunai',   total: 87_000,  status: 'selesai' },
-  { id: 'TRX-20260911-9798', time: '14:10', date: '11 Sep 2026', items: 'Beras 5kg (1), Gula 1kg (2)',      itemCount: 3, payment: 'Transfer', total: 112_000, status: 'selesai' },
-  { id: 'TRX-20260911-9792', time: '11:05', date: '11 Sep 2026', items: 'Es Teh (3), Indomie (2)',          itemCount: 5, payment: 'QRIS',    total: 25_000,  status: 'refund'  },
-];
-
-// ─────────────────────────────────────────────
-// Helpers
+// Formatting and chart helpers
 // ─────────────────────────────────────────────
 const formatRp = (n: number, compact = false): string => {
   if (compact) {
@@ -428,8 +293,8 @@ const ExportModal: React.FC<{ open: boolean; onClose: () => void; onExport: (typ
         <p className="text-xs text-slate-500 mb-4">Pilih format laporan yang ingin diunduh:</p>
         <div className="space-y-2.5">
           {[
-            { icon: <FileSpreadsheet size={20} className="text-emerald-600" />, label: 'Excel (.xlsx)', sub: 'Tabel lengkap — data omset, transaksi & produk', type: 'excel', bg: 'bg-emerald-50 border-emerald-200' },
-            { icon: <FileText size={20} className="text-rose-500" />,           label: 'PDF (.pdf)',   sub: 'Laporan ringkasan siap cetak & bagikan',        type: 'pdf',   bg: 'bg-rose-50 border-rose-200'     },
+            { icon: <FileSpreadsheet size={20} className="text-emerald-600" />, label: 'CSV (.csv)', sub: 'Daftar transaksi, dapat dibuka di Excel', type: 'excel', bg: 'bg-emerald-50 border-emerald-200' },
+            { icon: <FileText size={20} className="text-rose-500" />,           label: 'Cetak / Simpan PDF',   sub: 'Laporan ringkasan siap cetak & bagikan',        type: 'pdf',   bg: 'bg-rose-50 border-rose-200'     },
           ].map(opt => (
             <button
               key={opt.type}
@@ -470,27 +335,32 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
   };
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
-  const handleExport = (type: string) => {
-    showToast(`📥 Laporan ${type.toUpperCase()} sedang disiapkan & akan segera terunduh...`);
+  const {warung} = useSession();
+  const [customFrom,setCustomFrom]=useState(()=>dateRange('bulan_ini').from);
+  const [customTo,setCustomTo]=useState(()=>dateRange('hari_ini').to);
+  const range=period==='kustom'?{from:customFrom,to:customTo}:dateRange(period);
+  const {data,error}=useData<Report>('/warungs/'+warung.id+'/reports?date_from='+range.from+'&date_to='+range.to);
+  const metrics: MetricData = {omset:data?.summary.revenue??0,profit:data?.summary.estimated_profit??0,profitMargin:data?.summary.profit_margin??0,transaksi:data?.summary.sales_count??0,avgOrder:data?.summary.average_order??0};
+  const chartData=data?.chart??[];
+  const topProds: TopProduct[]=data?.top_products??[];
+  const cats: CategoryShare[]=(data?.categories??[]).map((c,i)=>({...c,color:['#057A55','#0891b2','#d97706','#7c3aed'][i%4]}));
+  const visibleTrx: Transaction[]=data?.transactions??[];
+  const periodLabel: Record<Period,string>={hari_ini:'Hari Ini','7_hari':'7 Hari Terakhir',bulan_ini:'Bulan Ini',kustom:'Kustom'};
+  const handleExport=(type:string)=>{
+    if(!data){showToast('Tunggu sampai laporan selesai dimuat.');return;}
+    if(type==='pdf'){window.print();return;}
+    const cell=(value:string|number)=>{const raw=String(value);return '"'+(/^[=+@-]/.test(raw)?"'"+raw:raw).replaceAll('"','""')+'"';};
+    const rows=[['ID','Tanggal','Jam','Item','Metode','Total','Status'],...visibleTrx.map(t=>[t.id,t.date,t.time,t.items,t.payment,t.total,t.status])];
+    const blob=new Blob(['\uFEFF'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='laporan-'+range.from+'-'+range.to+'.csv';link.click();URL.revokeObjectURL(url);
   };
-
-  const metrics   = METRICS[period];
-  const chartData = CHART_DATA[period];
-  const topProds  = TOP_PRODUCTS[period];
-  const cats      = CATEGORIES[period];
-
-  const periodLabel: Record<Period, string> = {
-    hari_ini: 'Hari Ini', '7_hari': '7 Hari Terakhir', bulan_ini: 'Bulan Ini', kustom: 'Kustom',
-  };
-
-  // Filter shown transactions by period
-  const visibleTrx = useMemo(() => {
-    if (period === 'hari_ini') return TRANSACTIONS.filter(t => t.date === '12 Sep 2026');
-    return TRANSACTIONS;
-  }, [period]);
 
   return (
     <AppLayout title="Laporan Keuangan" currentPath="/reports" onNavigate={onNavigate}>
+      {error && <p role="alert" className="p-4 text-red-600">{error}</p>}
+      {!data && !error && <p className="p-4">Memuat laporan...</p>}
+      {period==='kustom' && <div className="flex gap-3 p-3"><label>Dari <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} /></label><label>Sampai <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} /></label></div>}
+      <p className="p-3 text-xs text-slate-500">{data?.profit_basis} Perbandingan periode belum tersedia.</p>
 
       {/* ── Toast ── */}
       {toast && (
@@ -570,10 +440,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
             <div className="text-lg md:text-2xl font-extrabold text-slate-900 leading-tight">
               {formatRp(metrics.omset, true)}
             </div>
-            <div className={`flex items-center gap-1 mt-1.5 text-[11px] font-semibold ${metrics.omsetChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {metrics.omsetChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-              {Math.abs(metrics.omsetChange)}% vs periode lalu
-            </div>
+            <div className="mt-1.5 text-[11px] font-semibold text-slate-500">Penjualan tanpa pajak</div>
           </div>
 
           {/* Keuntungan */}
@@ -589,10 +456,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
               <span className="bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                 {metrics.profitMargin}% margin
               </span>
-              <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${metrics.profitChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {metrics.profitChange >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                {Math.abs(metrics.profitChange)}%
-              </span>
+              <span className="text-[11px] font-semibold text-slate-500">estimasi</span>
             </div>
           </div>
 
@@ -605,10 +469,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
             <div className="text-lg md:text-2xl font-extrabold text-slate-900 leading-tight">
               {metrics.transaksi.toLocaleString('id-ID')} struk
             </div>
-            <div className={`flex items-center gap-1 mt-1.5 text-[11px] font-semibold ${metrics.transaksiChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {metrics.transaksiChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-              {Math.abs(metrics.transaksiChange)}% vs periode lalu
-            </div>
+            <div className="mt-1.5 text-[11px] font-semibold text-slate-500">Transaksi selesai</div>
           </div>
 
           {/* Rata-rata */}
@@ -620,10 +481,7 @@ export const Reports: React.FC<ReportsProps> = ({ onNavigate }) => {
             <div className="text-lg md:text-2xl font-extrabold text-slate-900 leading-tight">
               {formatRp(metrics.avgOrder, true)}
             </div>
-            <div className={`flex items-center gap-1 mt-1.5 text-[11px] font-semibold ${metrics.avgOrderChange >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {metrics.avgOrderChange >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-              {Math.abs(metrics.avgOrderChange)}% avg order value
-            </div>
+            <div className="mt-1.5 text-[11px] font-semibold text-slate-500">Per transaksi selesai</div>
           </div>
         </div>
       </div>

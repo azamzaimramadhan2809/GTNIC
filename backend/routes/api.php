@@ -5,9 +5,10 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\IngredientCategoryController;
 use App\Http\Controllers\Api\IngredientController;
-use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\MenuCategoryController;
+use App\Http\Controllers\Api\MenuController;
 use App\Http\Controllers\Api\MenuRecipeController;
+use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\StockMovementController;
 use App\Http\Controllers\Api\WarungController;
@@ -18,6 +19,9 @@ Route::middleware('throttle:60,1')->group(function (): void {
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::get('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
+        ->middleware('signed')
+        ->name('verification.verify');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/user', [AuthController::class, 'profile']);
@@ -46,6 +50,8 @@ Route::middleware('throttle:60,1')->group(function (): void {
             Route::apiResource('stock-movements', StockMovementController::class)
                 ->only(['index', 'store', 'show'])
                 ->parameters(['stock-movements' => 'stockMovement']);
+
+            Route::get('reports', [ReportController::class, 'show']);
 
             Route::get('dashboard', [DashboardController::class, 'show'])
                 ->name('dashboard.show');
