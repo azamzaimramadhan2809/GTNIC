@@ -1,0 +1,14 @@
+import Link from 'next/link'
+import { ArrowRight, HeartHandshake, MapPinned, Store, Users } from 'lucide-react'
+import Navbar from '../../Components/Navbar'
+import Footer from '../../Components/Footer'
+
+const values = [
+  { icon: Store, title: 'UMKM sebagai pusat', body: 'Setiap keputusan produk dimulai dari kebutuhan pedagang Indonesia sehari-hari.' },
+  { icon: HeartHandshake, title: 'Teknologi yang ramah', body: 'Kami mengubah teknologi rumit menjadi alat sederhana yang dapat dipakai siapa saja.' },
+  { icon: MapPinned, title: 'Tumbuh dari Indonesia', body: 'Dibangun untuk kebiasaan lokal: WhatsApp, QRIS, dan cara UMKM melayani pelanggan.' },
+]
+
+export default function AboutPage() {
+  return <div className="min-h-screen bg-zinc-50"><Navbar /><main><section className="mx-auto grid max-w-[1200px] gap-14 px-6 py-24 md:grid-cols-[1.15fr_.85fr] md:items-end"><div><p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-600">Cerita kami</p><h1 className="text-[clamp(44px,7vw,78px)] font-extrabold leading-[1.02] tracking-[-2.5px] text-zinc-950">Membuat UMKM<br/><span className="serif-italic">mudah ditemukan.</span></h1></div><p className="pb-2 text-base leading-8 text-zinc-500">LynkStore lahir dari masalah sederhana: banyak produk lokal berkualitas hanya tersimpan di galeri WhatsApp. Kami membangun etalase digital yang bisa dibuat dalam hitungan menit.</p></section><section className="bg-zinc-950 px-6 py-24 text-white"><div className="mx-auto grid max-w-[1200px] gap-12 md:grid-cols-2"><div><Users className="mb-8 text-emerald-400" size={32}/><h2 className="text-4xl font-bold leading-tight">Misi kami adalah membantu satu juta UMKM Indonesia tampil profesional di internet.</h2></div><div className="space-y-6 text-sm leading-7 text-zinc-400"><p>Kami percaya digitalisasi tidak harus dimulai dari aplikasi rumit, biaya besar, atau sistem yang membutuhkan pelatihan panjang.</p><p>Cukup satu link yang memuat cerita toko, produk, harga, lokasi, dan jalur checkout menuju WhatsApp yang sudah digunakan setiap hari.</p></div></div></section><section className="mx-auto max-w-[1200px] px-6 py-24"><p className="mb-12 text-[11px] font-semibold uppercase tracking-[0.15em] text-emerald-600">Prinsip yang kami pegang</p><div className="grid gap-5 md:grid-cols-3">{values.map(({icon: Icon,title,body})=><article key={title} className="rounded-3xl border border-zinc-200 bg-white p-8"><Icon size={25} className="mb-8 text-emerald-600"/><h3 className="text-lg font-bold text-zinc-950">{title}</h3><p className="mt-3 text-sm leading-7 text-zinc-500">{body}</p></article>)}</div><div className="mt-16 flex justify-center"><Link href="/register" className="inline-flex items-center gap-2 rounded-xl bg-zinc-950 px-6 py-3.5 text-sm font-semibold text-white">Ikut membangun ekonomi lokal <ArrowRight size={16}/></Link></div></section></main><Footer /></div>
+}

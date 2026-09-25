@@ -8,6 +8,16 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+.next
+out
+*.tsbuildinfo
+.playwright-cli
+/output/playwright/
+/landing.png
+/login.png
+/onboarding.png
+/dashboard.png
+/pricing.png
 dist
 dist-ssr
 *.local
