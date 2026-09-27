@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { ShoppingBag } from 'lucide-react'
+import { motion, useReducedMotion } from 'framer-motion'
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false)
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -21,7 +23,12 @@ export default function Navbar() {
         scrolled ? 'shadow-sm' : ''
       }`}
     >
-      <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
+      <motion.div
+        initial={reduceMotion ? false : { opacity: 0, y: -14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.55, ease: [0.16, 1, 0.3, 1] }}
+        className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between"
+      >
         {/* LEFT — Brand */}
         <Link href="/" className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-zinc-950 flex items-center justify-center">
@@ -91,7 +98,7 @@ export default function Navbar() {
             Buat Toko Gratis
           </Link>
         </div>
-      </div>
+      </motion.div>
     </header>
   )
 }

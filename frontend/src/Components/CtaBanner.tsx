@@ -2,13 +2,12 @@
 
 import { ShoppingBag } from 'lucide-react'
 import Link from 'next/link'
-import { useReveal } from '../hooks/useReveal'
+import MotionReveal from './MotionReveal'
 
 export default function CtaBanner() {
-  const ref = useReveal()
-
   return (
-    <section ref={ref} className="px-6 py-24 reveal">
+    <section className="px-6 py-24">
+      <MotionReveal distance={36}>
       <div className="max-w-[700px] mx-auto bg-zinc-950 rounded-3xl px-12 py-16 text-center">
         {/* Label */}
         <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-400 mb-5">
@@ -49,6 +48,7 @@ export default function CtaBanner() {
           Tidak perlu kartu kredit · Komisi 0% · Selamanya gratis
         </div>
       </div>
+      </MotionReveal>
     </section>
   )
 }

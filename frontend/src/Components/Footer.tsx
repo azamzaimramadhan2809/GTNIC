@@ -1,9 +1,11 @@
 import { ShoppingBag } from 'lucide-react'
 import Link from 'next/link'
+import MotionReveal from './MotionReveal'
 
 export default function Footer() {
   return (
     <footer className="border-t border-zinc-200 bg-zinc-50 px-6 py-8">
+      <MotionReveal distance={14} amount={0.05}>
       <div className="max-w-[1200px] mx-auto flex items-center justify-between flex-wrap gap-4">
         {/* Left */}
         <div className="flex items-center gap-2.5">
@@ -40,6 +42,7 @@ export default function Footer() {
           </Link>
         </div>
       </div>
+      </MotionReveal>
     </footer>
   )
 }

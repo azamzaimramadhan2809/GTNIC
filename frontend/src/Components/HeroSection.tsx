@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { useScroll, useTransform } from 'framer-motion'
 import PhoneFrame from './PhoneFrame'
+import MotionReveal from './MotionReveal'
 
 export default function HeroSection() {
   const [slug, setSlug] = useState('')
@@ -30,6 +31,7 @@ export default function HeroSection() {
       {/* LEFT COLUMN */}
       <div>
         {/* 1. Eyebrow badge */}
+        <MotionReveal delay={0.05} distance={18}>
         <div className="inline-flex items-center gap-2 mb-8 bg-zinc-100 rounded-full px-4 py-1.5 border border-zinc-200">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
@@ -39,8 +41,10 @@ export default function HeroSection() {
             Platform Catalog & Link-in-Bio untuk UMKM Indonesia
           </span>
         </div>
+        </MotionReveal>
 
         {/* 2. Headline H1 */}
+        <MotionReveal delay={0.12}>
         <h1 className="text-[clamp(40px,5vw,64px)] font-extrabold text-zinc-950 leading-[1.08] tracking-[-1.5px] mb-6">
           Ubah WhatsApp
           <br />
@@ -48,13 +52,17 @@ export default function HeroSection() {
           <br />
           <span className="serif-italic">Impian dalam 2 Menit.</span>
         </h1>
+        </MotionReveal>
 
         {/* 3. Sub-paragraph */}
+        <MotionReveal delay={0.2}>
         <p className="text-[17px] text-zinc-500 leading-relaxed mb-10 max-w-[420px]">
           Tampilkan menu & produkmu secara profesional. Pembeli tinggal pilih, klik, dan terhubung ke WhatsApp toko kamu — tanpa aplikasi tambahan.
         </p>
+        </MotionReveal>
 
         {/* 4. URL input group */}
+        <MotionReveal delay={0.28}>
         <div className="flex items-center rounded-2xl border border-zinc-200 bg-white overflow-hidden max-w-[460px] mb-6 shadow-sm focus-within:ring-2 focus-within:ring-zinc-950 focus-within:ring-offset-2 transition-all">
           <span className="flex items-center px-4 py-3.5 text-[13px] text-zinc-400 font-mono border-r border-zinc-100 select-none whitespace-nowrap">
             lynkstore.id/
@@ -73,8 +81,10 @@ export default function HeroSection() {
             Mulai →
           </button>
         </div>
+        </MotionReveal>
 
         {/* 5. Trust signals row */}
+        <MotionReveal delay={0.36}>
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
           <div className="flex items-center gap-1.5 text-[13px] text-zinc-500">
             <Check size={14} className="stroke-emerald-500" strokeWidth={2.5} />
@@ -89,15 +99,16 @@ export default function HeroSection() {
             <span>Setup 2 Menit</span>
           </div>
         </div>
+        </MotionReveal>
       </div>
 
       {/* RIGHT COLUMN — 3D R3F WEBGL IPHONE MOCKUP */}
-      <div className="flex items-center justify-center">
+      <MotionReveal direction="left" delay={0.16} distance={42} className="flex items-center justify-center">
         <PhoneFrame
           rotateYRad={rotateYRad}
           rotateXRad={rotateXRad}
         />
-      </div>
+      </MotionReveal>
     </section>
   )
 }

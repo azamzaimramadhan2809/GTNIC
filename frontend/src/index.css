@@ -59,6 +59,15 @@ body {
   border-color: #D4D4D8;   /* zinc-300 */
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .device-float { animation: none; }
+  .animate-ping { animation: none; }
+  .card-hover,
+  .btn-primary { transition-duration: 0.01ms; }
+}
+
 /* ── Nav underline ── */
 .nav-link { position: relative; }
 .nav-link::after {

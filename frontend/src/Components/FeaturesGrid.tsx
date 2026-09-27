@@ -1,4 +1,4 @@
-import { useReveal } from '../hooks/useReveal'
+import MotionReveal from './MotionReveal'
 import type { Feature } from '../types'
 
 const FEATURES: Feature[] = [
@@ -35,12 +35,10 @@ const FEATURES: Feature[] = [
 ]
 
 export default function FeaturesGrid() {
-  const ref = useReveal()
-
   return (
-    <section id="fitur" ref={ref} className="reveal max-w-[1200px] mx-auto px-6 py-24">
+    <section id="fitur" className="max-w-[1200px] mx-auto px-6 py-24">
       {/* Header */}
-      <div className="mb-16">
+      <MotionReveal className="mb-16">
         <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-600 mb-4">
           Fitur Utama
         </div>
@@ -49,18 +47,18 @@ export default function FeaturesGrid() {
           <br />
           <span className="serif-italic">sudah tersedia.</span>
         </h2>
-      </div>
+      </MotionReveal>
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-zinc-200 rounded-2xl overflow-hidden border border-zinc-200">
         {FEATURES.map((item, index) => (
-          <div key={index} className="bg-white p-[32px_28px] card-hover">
-            <div className="text-[24px] mb-5">{item.icon}</div>
-            <h3 className="text-[15px] font-semibold text-zinc-950 mb-2.5">
-              {item.title}
-            </h3>
-            <p className="text-[14px] text-zinc-500 leading-relaxed">{item.desc}</p>
-          </div>
+          <MotionReveal key={item.title} delay={(index % 3) * 0.09} className="h-full">
+            <div className="bg-white p-[32px_28px] card-hover h-full">
+              <div className="text-[24px] mb-5">{item.icon}</div>
+              <h3 className="text-[15px] font-semibold text-zinc-950 mb-2.5">{item.title}</h3>
+              <p className="text-[14px] text-zinc-500 leading-relaxed">{item.desc}</p>
+            </div>
+          </MotionReveal>
         ))}
       </div>
     </section>

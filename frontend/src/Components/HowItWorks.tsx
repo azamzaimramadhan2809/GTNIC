@@ -1,4 +1,4 @@
-import { useReveal } from '../hooks/useReveal'
+import MotionReveal from './MotionReveal'
 import type { Step } from '../types'
 
 const STEPS: Step[] = [
@@ -25,13 +25,11 @@ const STEPS: Step[] = [
 ]
 
 export default function HowItWorks() {
-  const ref = useReveal()
-
   return (
-    <section id="cara-kerja" ref={ref} className="bg-zinc-950 text-zinc-50 py-24 reveal">
+    <section id="cara-kerja" className="bg-zinc-950 text-zinc-50 py-24">
       <div className="max-w-[1200px] mx-auto px-6">
         {/* Header */}
-        <div className="text-center mb-16">
+        <MotionReveal className="text-center mb-16">
           <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-400 mb-4">
             Cara Kerja
           </div>
@@ -49,15 +47,13 @@ export default function HowItWorks() {
               4 langkah mudah.
             </span>
           </h2>
-        </div>
+        </MotionReveal>
 
         {/* Steps Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {STEPS.map((step) => (
-            <div
-              key={step.number}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 card-hover"
-            >
+          {STEPS.map((step, index) => (
+            <MotionReveal key={step.number} delay={index * 0.09} className="h-full">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 card-hover h-full">
               <div className="text-[32px] font-extrabold text-zinc-700 tracking-[-1px] leading-none mb-4 font-mono">
                 {step.number}
               </div>
@@ -66,6 +62,7 @@ export default function HowItWorks() {
               </h3>
               <p className="text-[13px] text-zinc-500 leading-relaxed">{step.desc}</p>
             </div>
+            </MotionReveal>
           ))}
         </div>
       </div>

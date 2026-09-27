@@ -1,5 +1,5 @@
 import { Star } from 'lucide-react'
-import { useReveal } from '../hooks/useReveal'
+import MotionReveal from './MotionReveal'
 import type { Testimonial } from '../types'
 
 const TESTIMONIALS: Testimonial[] = [
@@ -38,12 +38,10 @@ function getInitials(name: string) {
 }
 
 export default function Testimonials() {
-  const ref = useReveal()
-
   return (
-    <section id="testimoni" ref={ref} className="reveal max-w-[1200px] mx-auto px-6 py-24">
+    <section id="testimoni" className="max-w-[1200px] mx-auto px-6 py-24">
       {/* Header */}
-      <div className="mb-16">
+      <MotionReveal className="mb-16">
         <div className="text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-600 mb-4">
           Testimoni
         </div>
@@ -52,15 +50,13 @@ export default function Testimonials() {
           <br />
           <span className="serif-italic">seluruh Indonesia.</span>
         </h2>
-      </div>
+      </MotionReveal>
 
       {/* Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {TESTIMONIALS.map((item, i) => (
-          <div
-            key={i}
-            className="bg-white border border-zinc-200 rounded-2xl p-7 card-hover flex flex-col gap-4"
-          >
+          <MotionReveal key={item.name} delay={i * 0.1} className="h-full">
+          <div className="bg-white border border-zinc-200 rounded-2xl p-7 card-hover flex flex-col gap-4 h-full">
             {/* Top Row */}
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-1">
@@ -97,6 +93,7 @@ export default function Testimonials() {
               </div>
             </div>
           </div>
+          </MotionReveal>
         ))}
       </div>
     </section>
